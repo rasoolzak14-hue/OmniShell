@@ -1,0 +1,52 @@
+# === C++ / CMake ===
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+Makefile
+*.cmake
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exe
+
+# === Compiler outputs ===
+*.o
+*.obj
+*.out
+*.pdb
+*.ilk
+
+# === Logs & debug ===
+*.log
+*.tmp
+*.swp
+*.DS_Store
+
+# === IDE files ===
+# CLion / JetBrains
+.idea/
+*.iml
+
+# Visual Studio Code
+.vscode/
+
+# Xcode (for iOS builds)
+*.xcworkspace
+*.xcodeproj
+*.xcuserstate
+DerivedData/
+
+# Android Studio / Gradle
+.gradle/
+local.properties
+*.apk
+*.aab
+*.keystore
+
+# === Mobile builds ===
+ios/Pods/
+android/.cxx/
+android/build/

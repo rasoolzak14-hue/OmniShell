@@ -1,0 +1,14 @@
+[
+  { "command": "Get-Help <cmd>", "description": "Show help for a command" },
+  { "command": "Get-Command", "description": "List available commands" },
+  { "command": "Get-Process", "description": "List running processes" },
+  { "command": "Get-Service", "description": "List services" },
+  { "command": "Get-ChildItem", "description": "List directory contents (like 'ls')" },
+  { "command": "Set-Location <path>", "description": "Change directory (like 'cd')" },
+  { "command": "New-Item -ItemType File <name>", "description": "Create a new file" },
+  { "command": "New-Item -ItemType Directory <name>", "description": "Create a new folder" },
+  { "command": "Copy-Item <src> <dest>", "description": "Copy a file or folder" },
+  { "command": "Move-Item <src> <dest>", "description": "Move or rename a file or folder" },
+  { "command": "Remove-Item <path>", "description": "Delete a file or folder" },
+  { "command": "Select-String -Path <file> -Pattern <text>", "description": "Search text in files (like 'grep')" }
+]

@@ -7,10 +7,10 @@ struct Command {
     std::string description;
 };
 
-// Linux
+// Implemented in linux.cpp
 std::vector<Command> load_linux_commands(const std::string& filepath);
 void show_linux_commands(const std::vector<Command>& cmds);
 
-// PowerShell
+// Implemented in powershell.cpp
 std::vector<Command> load_ps_commands(const std::string& filepath);
 void show_ps_commands(const std::vector<Command>& cmds);

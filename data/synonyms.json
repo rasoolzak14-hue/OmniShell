@@ -1,0 +1,16 @@
+{
+  "PowerShell": {
+    "remove item": "Remove-Item",
+    "delete file": "Remove-Item",
+    "copy item":   "Copy-Item",
+    "list dir":    "Get-ChildItem",
+    "change dir":  "Set-Location"
+  },
+  "Linux": {
+    "remove item": "rm",
+    "delete file": "rm",
+    "copy item":   "cp",
+    "list dir":    "ls",
+    "change dir":  "cd"
+  }
+}

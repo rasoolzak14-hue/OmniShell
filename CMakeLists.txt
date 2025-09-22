@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.20)
 
 project(My_First_Project LANGUAGES CXX)
 
@@ -9,12 +9,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(My_First_Project
         src/main.cpp
         src/engine.cpp
-        src/linux.cpp          # <-- add
-        src/powershell.cpp     # <-- add
+        src/auth/store_json.cpp
+        src/auth/auth_service.cpp
+        src/crypto/password_hash.cpp
 )
 
 target_include_directories(My_First_Project PRIVATE src)
 
+# nlohmann::json
 include(FetchContent)
 FetchContent_Declare(
         json
@@ -24,6 +26,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(json)
 target_link_libraries(My_First_Project PRIVATE nlohmann_json::nlohmann_json)
 
+# Copy data/ next to the built executable for dev runs
 add_custom_command(TARGET My_First_Project POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/data
@@ -31,6 +34,6 @@ add_custom_command(TARGET My_First_Project POST_BUILD
         COMMENT "Copying data/ to output directory"
 )
 
-if (MINGW)
-    target_link_options(My_First_Project PRIVATE -static -static-libstdc++ -static-libgcc)
-endif()
+#if (MINGW)
+#    target_link_options(My_First_Project PRIVATE -static -static-libstdc++ -static-libgcc)
+#endif()

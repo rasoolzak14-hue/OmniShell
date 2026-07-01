@@ -1,7 +1,7 @@
 // Mirrors the search/synonym logic in src/engine.cpp so the website and
 // the C++ app behave the same way against the same data/*.json files.
 
-const DATA_DIR = "../data/";
+const DATA_DIR = "data/";
 
 const providerSelect = document.getElementById("provider-select");
 const providerView = document.getElementById("provider-view");

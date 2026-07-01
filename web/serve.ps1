@@ -29,6 +29,9 @@ try {
                 continue
             }
             if ($localPath -eq "/web/" -or $localPath -eq "/web") { $localPath = "/web/index.html" }
+            # Cloudflare deploy copies data/ into web/data/ at build time; alias it here
+            # so local dev works against the single data/ folder without duplicating files.
+            if ($localPath -like "/web/data/*") { $localPath = $localPath -replace "^/web/data/", "/data/" }
             $filePath = Join-Path $root ($localPath.TrimStart("/"))
 
             if (Test-Path $filePath -PathType Leaf) {

@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "omnishell-auth",
-      "database_id": "REPLACE_WITH_DATABASE_ID_FROM_DASHBOARD"
+      "database_id": "019d39fc-4ffc-4e47-af19-7f0f295f53af"
     }
   ]
 }

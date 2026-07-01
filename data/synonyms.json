@@ -24,6 +24,15 @@
     "get input": "input",
     "import library": "import",
     "loop": "for",
-    "conditional": "if"
+    "conditional": "if",
+    "while loop": "while",
+    "define class": "class",
+    "create list": "my_list = []",
+    "add to list": "my_list.append(item)",
+    "create dictionary": "my_dict = {}",
+    "handle error": "except Exception as e",
+    "open file": "with open",
+    "convert to string": "str(x)",
+    "convert to integer": "int(x)"
   }
 }

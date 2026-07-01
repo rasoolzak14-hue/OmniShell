@@ -126,6 +126,7 @@ int main(int argc, char** argv) {
     }
 
     Engine engine;
+    engine.loadSynonyms(data_path(argv[0], "synonyms.json"));
 
     while (true) {
         std::cout << "=== CommandApp";
@@ -134,6 +135,7 @@ int main(int argc, char** argv) {
         std::cout << "Select provider:\n";
         std::cout << "  1. Linux\n";
         std::cout << "  2. PowerShell\n";
+        std::cout << "  3. Python\n";
         std::cout << "  0. Exit\n";
         std::cout << "Choice: ";
 
@@ -145,19 +147,21 @@ int main(int argc, char** argv) {
             continue;
         }
         if (provider == 0) break;
-        if (provider != 1 && provider != 2) {
+        if (provider != 1 && provider != 2 && provider != 3) {
             std::cout << "Invalid choice.\n\n";
             continue;
         }
 
-        std::string title, dataFile;
-        if (provider == 1) { title = "Linux Commands";      dataFile = data_path(argv[0], "linux_commands.json"); }
-        else               { title = "PowerShell Commands"; dataFile = data_path(argv[0], "powershell_commands.json"); }
+        std::string title, dataFile, providerId;
+        if (provider == 1)      { title = "Linux Commands";      dataFile = data_path(argv[0], "linux_commands.json");      providerId = "linux"; }
+        else if (provider == 2) { title = "PowerShell Commands"; dataFile = data_path(argv[0], "powershell_commands.json"); providerId = "powershell"; }
+        else                    { title = "Python Commands";    dataFile = data_path(argv[0], "python_commands.json");     providerId = "python"; }
 
         if (!engine.loadProvider(title, dataFile)) {
             std::cout << "No commands loaded (check your JSON path).\n\n";
             continue;
         }
+        engine.setActiveProviderId(providerId);
 
         while (true) {
             std::cout << "\n=== " << title << " ===\n";

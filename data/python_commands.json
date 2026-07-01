@@ -1,0 +1,8 @@
+[
+  { "command": "print('hello')", "description": "Output text to console" },
+  { "command": "def name():", "description": "Define a function" },
+  { "command": "if x > 5:", "description": "Basic conditional statement" },
+  { "command": "for i in range(5):", "description": "Basic loop structure" },
+  { "command": "import math", "description": "Import a library" },
+  { "command": "x = input()", "description": "Get user input" }
+]

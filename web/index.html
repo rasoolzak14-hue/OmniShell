@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniShell</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>OmniShell</h1>
+  <p class="subtitle">Search commands for Linux, PowerShell, and Python</p>
+</header>
+
+<main>
+  <section id="provider-select">
+    <button class="provider-card" data-provider="linux" data-file="linux_commands.json">
+      <span class="provider-name">Linux</span>
+      <span class="provider-hint">bash / shell commands</span>
+    </button>
+    <button class="provider-card" data-provider="powershell" data-file="powershell_commands.json">
+      <span class="provider-name">PowerShell</span>
+      <span class="provider-hint">Windows PowerShell cmdlets</span>
+    </button>
+    <button class="provider-card" data-provider="python" data-file="python_commands.json">
+      <span class="provider-name">Python</span>
+      <span class="provider-hint">basic Python syntax</span>
+    </button>
+  </section>
+
+  <section id="provider-view" hidden>
+    <div class="toolbar">
+      <button id="back-btn">&larr; Back</button>
+      <h2 id="provider-title"></h2>
+    </div>
+
+    <label for="search-input" class="sr-only">Search by keyword</label>
+    <input id="search-input" type="text" placeholder="Search by keyword (e.g. &quot;move directory&quot;)...">
+
+    <p id="result-count"></p>
+    <ol id="command-list"></ol>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

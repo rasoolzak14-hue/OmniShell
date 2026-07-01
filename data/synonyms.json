@@ -4,13 +4,26 @@
     "delete file": "Remove-Item",
     "copy item":   "Copy-Item",
     "list dir":    "Get-ChildItem",
-    "change dir":  "Set-Location"
+    "change dir":  "Set-Location",
+    "move directory": "Set-Location",
+    "move to directory": "Set-Location"
   },
   "Linux": {
     "remove item": "rm",
     "delete file": "rm",
     "copy item":   "cp",
     "list dir":    "ls",
-    "change dir":  "cd"
+    "change dir":  "cd",
+    "move directory": "cd",
+    "move to directory": "cd"
+  },
+  "Python": {
+    "print output": "print",
+    "output text": "print",
+    "define function": "def",
+    "get input": "input",
+    "import library": "import",
+    "loop": "for",
+    "conditional": "if"
   }
 }

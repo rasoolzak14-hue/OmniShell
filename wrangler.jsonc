@@ -1,7 +1,16 @@
 {
   "name": "omnishell",
   "compatibility_date": "2026-07-01",
+  "main": "worker/index.js",
   "assets": {
-    "directory": "web"
-  }
+    "directory": "web",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "omnishell-auth",
+      "database_id": "REPLACE_WITH_DATABASE_ID_FROM_DASHBOARD"
+    }
+  ]
 }

@@ -4,7 +4,7 @@
 
 const SESSION_COOKIE = "session";
 const SESSION_DAYS = 30;
-const PBKDF2_ITERATIONS = 210000; // OWASP-recommended minimum for PBKDF2-HMAC-SHA256
+const PBKDF2_ITERATIONS = 100000; // Cloudflare Workers' crypto.subtle caps PBKDF2 at 100,000 iterations
 const DUMMY_SALT_HEX = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; // used to equalize timing for unknown usernames
 
 // ---------- encoding helpers ----------

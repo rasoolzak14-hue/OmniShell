@@ -1,0 +1,20 @@
+[
+  { "command": "SELECT * FROM table;", "description": "Select all columns from a table", "examples": ["SELECT * FROM students;", "SELECT * FROM orders;"] },
+  { "command": "SELECT column FROM table;", "description": "Select a specific column from a table", "examples": ["SELECT name FROM students;", "SELECT email FROM users;"] },
+  { "command": "SELECT column FROM table WHERE condition;", "description": "Select rows matching a condition", "examples": ["SELECT name FROM students WHERE age > 16;", "SELECT * FROM orders WHERE status = 'shipped';"] },
+  { "command": "INSERT INTO table (col1, col2) VALUES (val1, val2);", "description": "Insert a new row into a table", "examples": ["INSERT INTO students (name, age) VALUES ('Alex', 16);"] },
+  { "command": "UPDATE table SET column = value WHERE condition;", "description": "Update rows matching a condition", "examples": ["UPDATE students SET age = 17 WHERE name = 'Alex';"] },
+  { "command": "DELETE FROM table WHERE condition;", "description": "Delete rows matching a condition", "examples": ["DELETE FROM students WHERE name = 'Alex';"] },
+  { "command": "CREATE TABLE table (col1 TYPE, col2 TYPE);", "description": "Create a new table", "examples": ["CREATE TABLE students (id INTEGER PRIMARY KEY, name TEXT);"] },
+  { "command": "DROP TABLE table;", "description": "Delete an entire table", "examples": ["DROP TABLE students;"] },
+  { "command": "ALTER TABLE table ADD column TYPE;", "description": "Add a new column to a table", "examples": ["ALTER TABLE students ADD email TEXT;"] },
+  { "command": "SELECT * FROM table ORDER BY column;", "description": "Sort results by a column", "examples": ["SELECT * FROM students ORDER BY name;"] },
+  { "command": "SELECT * FROM table ORDER BY column DESC;", "description": "Sort results in descending order", "examples": ["SELECT * FROM students ORDER BY age DESC;"] },
+  { "command": "SELECT * FROM table LIMIT n;", "description": "Limit the number of rows returned", "examples": ["SELECT * FROM students LIMIT 10;"] },
+  { "command": "SELECT COUNT(*) FROM table;", "description": "Count the number of rows", "examples": ["SELECT COUNT(*) FROM students;"] },
+  { "command": "SELECT * FROM table1 JOIN table2 ON condition;", "description": "Combine rows from two tables", "examples": ["SELECT * FROM students JOIN grades ON students.id = grades.student_id;"] },
+  { "command": "SELECT DISTINCT column FROM table;", "description": "Select unique values from a column", "examples": ["SELECT DISTINCT subject FROM grades;"] },
+  { "command": "SELECT column FROM table WHERE column LIKE '%text%';", "description": "Search for a pattern within a column", "examples": ["SELECT name FROM students WHERE name LIKE '%an%';"] },
+  { "command": "SELECT column FROM table GROUP BY column;", "description": "Group rows sharing a value", "examples": ["SELECT subject FROM grades GROUP BY subject;"] },
+  { "command": "SELECT column, COUNT(*) FROM table GROUP BY column;", "description": "Count rows within each group", "examples": ["SELECT subject, COUNT(*) FROM grades GROUP BY subject;"] }
+]

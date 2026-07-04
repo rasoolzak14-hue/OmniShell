@@ -1,0 +1,21 @@
+[
+  { "command": "git init", "description": "Create a new local repository", "examples": ["git init"] },
+  { "command": "git clone <url>", "description": "Copy a remote repository to your computer", "examples": ["git clone https://github.com/user/repo.git"] },
+  { "command": "git status", "description": "Show changed files in the working directory", "examples": ["git status"] },
+  { "command": "git add <file>", "description": "Stage a file for the next commit", "examples": ["git add index.html", "git add src/main.py"] },
+  { "command": "git add .", "description": "Stage all changed files for the next commit", "examples": ["git add ."] },
+  { "command": "git commit -m \"message\"", "description": "Save staged changes as a new commit", "examples": ["git commit -m \"Add login page\"", "git commit -m \"Fix typo in README\""] },
+  { "command": "git push", "description": "Upload local commits to the remote repository", "examples": ["git push", "git push origin main"] },
+  { "command": "git pull", "description": "Download and merge changes from the remote repository", "examples": ["git pull", "git pull origin main"] },
+  { "command": "git branch", "description": "List all local branches", "examples": ["git branch"] },
+  { "command": "git branch <name>", "description": "Create a new branch", "examples": ["git branch feature-login"] },
+  { "command": "git checkout <branch>", "description": "Switch to a different branch", "examples": ["git checkout main", "git checkout feature-login"] },
+  { "command": "git checkout -b <branch>", "description": "Create and switch to a new branch", "examples": ["git checkout -b feature-login"] },
+  { "command": "git merge <branch>", "description": "Merge another branch into the current branch", "examples": ["git merge feature-login"] },
+  { "command": "git log", "description": "Show commit history", "examples": ["git log", "git log --oneline"] },
+  { "command": "git diff", "description": "Show unstaged changes", "examples": ["git diff", "git diff index.html"] },
+  { "command": "git stash", "description": "Temporarily save uncommitted changes", "examples": ["git stash"] },
+  { "command": "git stash pop", "description": "Restore the most recently stashed changes", "examples": ["git stash pop"] },
+  { "command": "git remote -v", "description": "Show configured remote repositories", "examples": ["git remote -v"] },
+  { "command": "git reset <file>", "description": "Unstage a file without discarding changes", "examples": ["git reset index.html"] }
+]

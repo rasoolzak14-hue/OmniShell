@@ -52,6 +52,12 @@ static void browse_by_number(const std::vector<Command>& cmds, const std::string
 
         const auto& c = cmds[static_cast<size_t>(choice) - 1];
         std::cout << "\n" << c.command << " -> " << c.description << "\n";
+        if (!c.examples.empty()) {
+            std::cout << "Examples:\n";
+            for (const auto& ex : c.examples) {
+                std::cout << "  " << ex << "\n";
+            }
+        }
     }
 }
 
@@ -128,14 +134,31 @@ int main(int argc, char** argv) {
     Engine engine;
     engine.loadSynonyms(data_path(argv[0], "synonyms.json"));
 
+    struct ProviderEntry {
+        std::string label;
+        std::string title;
+        std::string dataFile;
+        std::string providerId;
+    };
+    const std::vector<ProviderEntry> providers = {
+        { "Linux",       "Linux Commands",       "linux_commands.json",      "linux" },
+        { "PowerShell",  "PowerShell Commands",  "powershell_commands.json", "powershell" },
+        { "Python",      "Python Commands",      "python_commands.json",     "python" },
+        { "JavaScript",  "JavaScript Commands",  "javascript_commands.json", "javascript" },
+        { "Java",        "Java Commands",        "java_commands.json",       "java" },
+        { "C++",         "C++ Commands",         "cpp_commands.json",        "cpp" },
+        { "SQL",         "SQL Commands",         "sql_commands.json",        "sql" },
+        { "Git",         "Git Commands",         "git_commands.json",        "git" },
+    };
+
     while (true) {
         std::cout << "=== CommandApp";
         if (auth.is_logged_in()) std::cout << " (" << auth.current_username() << ")";
         std::cout << " ===\n";
         std::cout << "Select provider:\n";
-        std::cout << "  1. Linux\n";
-        std::cout << "  2. PowerShell\n";
-        std::cout << "  3. Python\n";
+        for (size_t i = 0; i < providers.size(); ++i) {
+            std::cout << "  " << (i + 1) << ". " << providers[i].label << "\n";
+        }
         std::cout << "  0. Exit\n";
         std::cout << "Choice: ";
 
@@ -147,15 +170,15 @@ int main(int argc, char** argv) {
             continue;
         }
         if (provider == 0) break;
-        if (provider != 1 && provider != 2 && provider != 3) {
+        if (provider < 1 || static_cast<size_t>(provider) > providers.size()) {
             std::cout << "Invalid choice.\n\n";
             continue;
         }
 
-        std::string title, dataFile, providerId;
-        if (provider == 1)      { title = "Linux Commands";      dataFile = data_path(argv[0], "linux_commands.json");      providerId = "linux"; }
-        else if (provider == 2) { title = "PowerShell Commands"; dataFile = data_path(argv[0], "powershell_commands.json"); providerId = "powershell"; }
-        else                    { title = "Python Commands";    dataFile = data_path(argv[0], "python_commands.json");     providerId = "python"; }
+        const auto& selected = providers[static_cast<size_t>(provider) - 1];
+        const std::string title = selected.title;
+        const std::string dataFile = data_path(argv[0], selected.dataFile);
+        const std::string providerId = selected.providerId;
 
         if (!engine.loadProvider(title, dataFile)) {
             std::cout << "No commands loaded (check your JSON path).\n\n";

@@ -160,14 +160,28 @@ main {
   gap: 8px;
 }
 
-#command-list li {
+#command-list li.cmd-item {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 12px 14px;
+  overflow: hidden;
+}
+
+.cmd-row {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   align-items: baseline;
+  padding: 12px 14px;
+}
+
+.cmd-row.has-examples {
+  cursor: pointer;
+}
+
+.cmd-row.has-examples:hover,
+.cmd-row.expanded {
+  background: rgba(79, 195, 247, 0.08);
 }
 
 .cmd-index {
@@ -184,6 +198,41 @@ main {
 
 .cmd-desc {
   color: var(--text);
+  flex: 1 1 200px;
+  min-width: 200px;
+}
+
+.cmd-caret {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.cmd-examples {
+  border-top: 1px solid var(--border);
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.cmd-examples[hidden] {
+  display: none;
+}
+
+.examples-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.example-line {
+  color: var(--accent);
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 0.9rem;
+  padding-left: 1.25em;
 }
 
 .no-results {

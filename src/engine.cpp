@@ -51,9 +51,16 @@ static std::vector<Command> load_from_json(const std::string& filepath) {
     out.reserve(j.size());
     for (const auto& item : j) {
         if (!item.is_object()) continue;
+        std::vector<std::string> examples;
+        if (item.contains("examples") && item["examples"].is_array()) {
+            for (const auto& ex : item["examples"]) {
+                if (ex.is_string()) examples.push_back(ex.get<std::string>());
+            }
+        }
         out.push_back(Command{
             item.value("command", ""),
-            item.value("description", "")
+            item.value("description", ""),
+            examples
         });
     }
     return out;

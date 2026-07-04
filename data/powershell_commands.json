@@ -1,14 +1,14 @@
 [
-  { "command": "Get-Help <cmd>", "description": "Show help for a command" },
-  { "command": "Get-Command", "description": "List available commands" },
-  { "command": "Get-Process", "description": "List running processes" },
-  { "command": "Get-Service", "description": "List services" },
-  { "command": "Get-ChildItem", "description": "List directory contents (like 'ls')" },
-  { "command": "Set-Location <path>", "description": "Change directory (like 'cd')" },
-  { "command": "New-Item -ItemType File <name>", "description": "Create a new file" },
-  { "command": "New-Item -ItemType Directory <name>", "description": "Create a new folder" },
-  { "command": "Copy-Item <src> <dest>", "description": "Copy a file or folder" },
-  { "command": "Move-Item <src> <dest>", "description": "Move or rename a file or folder" },
-  { "command": "Remove-Item <path>", "description": "Delete a file or folder" },
-  { "command": "Select-String -Path <file> -Pattern <text>", "description": "Search text in files (like 'grep')" }
+  { "command": "Get-Help <cmd>", "description": "Show help for a command", "examples": ["Get-Help Get-Process", "Get-Help Copy-Item -Examples"] },
+  { "command": "Get-Command", "description": "List available commands", "examples": ["Get-Command", "Get-Command -Noun Item"] },
+  { "command": "Get-Process", "description": "List running processes", "examples": ["Get-Process", "Get-Process chrome"] },
+  { "command": "Get-Service", "description": "List services", "examples": ["Get-Service", "Get-Service -Name wuauserv"] },
+  { "command": "Get-ChildItem", "description": "List directory contents (like 'ls')", "examples": ["Get-ChildItem", "Get-ChildItem C:\\Users"] },
+  { "command": "Set-Location <path>", "description": "Change directory (like 'cd')", "examples": ["Set-Location Downloads", "Set-Location C:\\Projects"] },
+  { "command": "New-Item -ItemType File <name>", "description": "Create a new file", "examples": ["New-Item -ItemType File notes.txt", "New-Item -ItemType File index.html"] },
+  { "command": "New-Item -ItemType Directory <name>", "description": "Create a new folder", "examples": ["New-Item -ItemType Directory Downloads", "New-Item -ItemType Directory Documents"] },
+  { "command": "Copy-Item <src> <dest>", "description": "Copy a file or folder", "examples": ["Copy-Item notes.txt backup.txt", "Copy-Item -Recurse Documents Documents-backup"] },
+  { "command": "Move-Item <src> <dest>", "description": "Move or rename a file or folder", "examples": ["Move-Item notes.txt Documents\\notes.txt", "Move-Item old-name.txt new-name.txt"] },
+  { "command": "Remove-Item <path>", "description": "Delete a file or folder", "examples": ["Remove-Item notes.txt", "Remove-Item -Recurse OldFolder"] },
+  { "command": "Select-String -Path <file> -Pattern <text>", "description": "Search text in files (like 'grep')", "examples": ["Select-String -Path log.txt -Pattern \"error\"", "Select-String -Path *.ps1 -Pattern \"TODO\""] }
 ]

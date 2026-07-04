@@ -84,6 +84,10 @@ function render(list) {
 
   list.forEach((c, i) => {
     const li = document.createElement("li");
+    li.className = "cmd-item";
+
+    const row = document.createElement("div");
+    row.className = "cmd-row";
 
     const index = document.createElement("span");
     index.className = "cmd-index";
@@ -97,7 +101,42 @@ function render(list) {
     arrow.className = "cmd-desc";
     arrow.textContent = "→ " + c.description;
 
-    li.append(index, cmdText, arrow);
+    row.append(index, cmdText, arrow);
+    li.appendChild(row);
+
+    if (Array.isArray(c.examples) && c.examples.length > 0) {
+      row.classList.add("has-examples");
+
+      const caret = document.createElement("span");
+      caret.className = "cmd-caret";
+      caret.textContent = "▸";
+      row.appendChild(caret);
+
+      const examplesEl = document.createElement("div");
+      examplesEl.className = "cmd-examples";
+      examplesEl.hidden = true;
+
+      const label = document.createElement("div");
+      label.className = "examples-label";
+      label.textContent = "Examples";
+      examplesEl.appendChild(label);
+
+      c.examples.forEach((ex) => {
+        const exLine = document.createElement("code");
+        exLine.className = "example-line";
+        exLine.textContent = ex;
+        examplesEl.appendChild(exLine);
+      });
+
+      li.appendChild(examplesEl);
+
+      row.addEventListener("click", () => {
+        examplesEl.hidden = !examplesEl.hidden;
+        row.classList.toggle("expanded", !examplesEl.hidden);
+        caret.textContent = examplesEl.hidden ? "▸" : "▾";
+      });
+    }
+
     commandList.appendChild(li);
   });
 }

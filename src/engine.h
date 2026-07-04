@@ -7,6 +7,7 @@
 struct Command {
     std::string command;
     std::string description;
+    std::vector<std::string> examples;
 };
 
 class Engine {

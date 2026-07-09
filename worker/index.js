@@ -133,7 +133,7 @@ async function verifySession(cookieValue, env) {
   if (typeof payload.userId !== "number") {
     return null;
   }
-  if (payload.role !== "teacher" && payload.role !== "student") {
+  if (payload.role !== "headteacher" && payload.role !== "teacher" && payload.role !== "student") {
     payload.role = "teacher";
   }
 
@@ -218,7 +218,8 @@ function handleLogout() {
 }
 
 async function handleAdminCreateSchool(request, env) {
-  // Fail closed if the admin token secret was never configured.
+  // Admin creates headteacher accounts, which in turn create teachers, which
+  // create students. Fail closed if the admin token secret was never configured.
   if (!env.ADMIN_TOKEN) {
     return jsonError(403, "Admin endpoint disabled");
   }
@@ -251,7 +252,7 @@ async function handleAdminCreateSchool(request, env) {
   try {
     await env.DB
       .prepare(
-        "INSERT INTO schools (username, salt, hash, display_name, active, role, created_at) VALUES (?, ?, ?, ?, 1, 'teacher', ?)"
+        "INSERT INTO schools (username, salt, hash, display_name, active, role, created_at) VALUES (?, ?, ?, ?, 1, 'headteacher', ?)"
       )
       .bind(username, toHex(saltBytes), toHex(hashBytes), displayName || username, new Date().toISOString())
       .run();
@@ -308,6 +309,43 @@ async function handleTeacherCreateStudent(request, env, session) {
 
   return new Response(JSON.stringify({ ok: true, username }), {
     status: 201,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleTeacherDeleteStudent(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const studentId = Number(body && body.studentId);
+  if (!Number.isInteger(studentId)) {
+    return jsonError(400, "studentId is required");
+  }
+
+  // Only allow deleting a student that actually belongs to the calling
+  // teacher — never trust studentId alone.
+  const student = await env.DB
+    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'student'")
+    .bind(studentId, session.userId)
+    .first();
+
+  if (!student) {
+    return jsonError(404, "Student not found");
+  }
+
+  await env.DB.prepare("DELETE FROM quiz_attempts WHERE student_id = ?").bind(studentId).run();
+  await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(studentId).run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
     headers: { "Content-Type": "application/json" }
   });
 }
@@ -374,6 +412,156 @@ async function handleTeacherProgress(env, session) {
     .all();
 
   return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherCreateTeacher(request, env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const username = ((body && body.username) || "").trim();
+  const password = (body && body.password) || "";
+  const displayName = ((body && body.displayName) || "").trim();
+  if (!username || !password) {
+    return jsonError(400, "username and password are required");
+  }
+
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const hashBytes = await pbkdf2Hash(password, saltBytes);
+
+  try {
+    await env.DB
+      .prepare(
+        "INSERT INTO schools (username, salt, hash, display_name, active, role, teacher_id, created_at) VALUES (?, ?, ?, ?, 1, 'teacher', ?, ?)"
+      )
+      .bind(
+        username,
+        toHex(saltBytes),
+        toHex(hashBytes),
+        displayName || username,
+        session.userId,
+        new Date().toISOString()
+      )
+      .run();
+  } catch {
+    return jsonError(409, "Username already exists or database error");
+  }
+
+  return new Response(JSON.stringify({ ok: true, username }), {
+    status: 201,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherTeachers(env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  const result = await env.DB
+    .prepare(
+      "SELECT id, username, display_name FROM schools WHERE teacher_id = ? AND role = 'teacher' ORDER BY display_name"
+    )
+    .bind(session.userId)
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherResetTeacherPassword(request, env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const teacherId = Number(body && body.teacherId);
+  const newPassword = (body && body.newPassword) || "";
+  if (!Number.isInteger(teacherId) || !newPassword) {
+    return jsonError(400, "teacherId and newPassword are required");
+  }
+
+  // Only allow resetting a password for a teacher that actually belongs to
+  // the calling headteacher — never trust teacherId alone.
+  const teacher = await env.DB
+    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'teacher'")
+    .bind(teacherId, session.userId)
+    .first();
+
+  if (!teacher) {
+    return jsonError(404, "Teacher not found");
+  }
+
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const hashBytes = await pbkdf2Hash(newPassword, saltBytes);
+
+  await env.DB
+    .prepare("UPDATE schools SET salt = ?, hash = ? WHERE id = ?")
+    .bind(toHex(saltBytes), toHex(hashBytes), teacherId)
+    .run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherDeleteTeacher(request, env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const teacherId = Number(body && body.teacherId);
+  if (!Number.isInteger(teacherId)) {
+    return jsonError(400, "teacherId is required");
+  }
+
+  const teacher = await env.DB
+    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'teacher'")
+    .bind(teacherId, session.userId)
+    .first();
+
+  if (!teacher) {
+    return jsonError(404, "Teacher not found");
+  }
+
+  // Deleting a teacher cascades to their students and those students' quiz
+  // attempts, so nothing orphaned is left behind.
+  await env.DB
+    .prepare(
+      "DELETE FROM quiz_attempts WHERE student_id IN (SELECT id FROM schools WHERE teacher_id = ? AND role = 'student')"
+    )
+    .bind(teacherId)
+    .run();
+  await env.DB.prepare("DELETE FROM schools WHERE teacher_id = ? AND role = 'student'").bind(teacherId).run();
+  await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(teacherId).run();
+
+  return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { "Content-Type": "application/json" }
   });
@@ -458,8 +646,23 @@ export default {
     if (pathname === "/api/teacher/students/reset-password" && method === "POST") {
       return handleTeacherResetStudentPassword(request, env, session);
     }
+    if (pathname === "/api/teacher/students/delete" && method === "POST") {
+      return handleTeacherDeleteStudent(request, env, session);
+    }
     if (pathname === "/api/teacher/progress" && method === "GET") {
       return handleTeacherProgress(env, session);
+    }
+    if (pathname === "/api/headteacher/teachers" && method === "POST") {
+      return handleHeadteacherCreateTeacher(request, env, session);
+    }
+    if (pathname === "/api/headteacher/teachers" && method === "GET") {
+      return handleHeadteacherTeachers(env, session);
+    }
+    if (pathname === "/api/headteacher/teachers/reset-password" && method === "POST") {
+      return handleHeadteacherResetTeacherPassword(request, env, session);
+    }
+    if (pathname === "/api/headteacher/teachers/delete" && method === "POST") {
+      return handleHeadteacherDeleteTeacher(request, env, session);
     }
     if (pathname === "/api/quiz/attempts" && method === "POST") {
       return handleQuizAttempt(request, env, session);

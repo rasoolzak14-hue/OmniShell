@@ -164,7 +164,11 @@ async function loadRoleLink() {
     const res = await fetch("/api/me");
     if (!res.ok) return;
     const data = await res.json();
-    if (data.role === "teacher") {
+    if (data.role === "headteacher") {
+      roleLink.textContent = "Headteacher Dashboard";
+      roleLink.href = "/headteacher.html";
+      roleLink.hidden = false;
+    } else if (data.role === "teacher") {
       roleLink.textContent = "Teacher Dashboard";
       roleLink.href = "/teacher.html";
       roleLink.hidden = false;

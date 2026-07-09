@@ -146,6 +146,43 @@
     color: var(--text);
     border-color: var(--accent);
   }
+  .delete-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: #ff6b6b;
+  }
+  .delete-btn:hover {
+    background: #ff6b6b;
+    color: #0f1115;
+    border-color: #ff6b6b;
+  }
+  .delete-confirm {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(255, 107, 107, 0.08);
+  }
+  .delete-confirm.open {
+    display: flex;
+  }
+  .delete-confirm p {
+    margin: 0;
+    font-size: 0.85rem;
+    flex: 1;
+  }
+  .delete-confirm-btn {
+    background: #ff6b6b;
+    color: #0f1115;
+  }
+  .delete-cancel-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
   #students-list {
     list-style: none;
     margin: 0;
@@ -339,6 +376,20 @@
       resetBtn.textContent = "Reset password";
       row.insertBefore(resetBtn, row.querySelector(".student-caret"));
 
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "Delete";
+      row.insertBefore(deleteBtn, row.querySelector(".student-caret"));
+
+      const deleteConfirm = document.createElement("div");
+      deleteConfirm.className = "delete-confirm";
+      deleteConfirm.innerHTML = `
+        <p>Delete <strong>${student.name}</strong>? This permanently removes their account and quiz history.</p>
+        <button type="button" class="delete-cancel-btn">Cancel</button>
+        <button type="button" class="delete-confirm-btn">Delete</button>
+      `;
+
       const resetForm = document.createElement("div");
       resetForm.className = "reset-form";
       resetForm.innerHTML = `
@@ -418,8 +469,42 @@
         }
       });
 
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteConfirm.classList.toggle("open");
+      });
+
+      deleteConfirm.addEventListener("click", (e) => e.stopPropagation());
+
+      deleteConfirm.querySelector(".delete-cancel-btn").addEventListener("click", () => {
+        deleteConfirm.classList.remove("open");
+      });
+
+      deleteConfirm.querySelector(".delete-confirm-btn").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          const res = await fetch("/api/teacher/students/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ studentId: student.id })
+          });
+          if (res.ok) {
+            item.remove();
+            if (document.querySelectorAll(".student-item").length === 0) {
+              container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
+            }
+          } else {
+            btn.disabled = false;
+          }
+        } catch {
+          btn.disabled = false;
+        }
+      });
+
       item.appendChild(row);
       item.appendChild(resetForm);
+      item.appendChild(deleteConfirm);
       item.appendChild(attemptsPanel);
       list.appendChild(item);
     });

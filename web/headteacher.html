@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniShell &mdash; Headteacher Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 64px;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  .header-links {
+    display: flex;
+    gap: 8px;
+  }
+  .header-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+  .header-links a:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  h2 {
+    margin: 0 0 16px;
+    font-size: 1.05rem;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  button {
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .success {
+    color: #6ee7a0;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .empty {
+    color: var(--muted);
+    padding: 16px 0;
+    text-align: center;
+  }
+  .reset-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .reset-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .delete-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: #ff6b6b;
+  }
+  .delete-btn:hover {
+    background: #ff6b6b;
+    color: #0f1115;
+    border-color: #ff6b6b;
+  }
+  .delete-confirm {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(255, 107, 107, 0.08);
+  }
+  .delete-confirm.open {
+    display: flex;
+  }
+  .delete-confirm p {
+    margin: 0;
+    font-size: 0.85rem;
+    flex: 1;
+  }
+  .delete-confirm-btn {
+    background: #ff6b6b;
+    color: #0f1115;
+  }
+  .delete-cancel-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  #teachers-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .teacher-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .teacher-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .teacher-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .teacher-name {
+    font-weight: 600;
+  }
+  .teacher-username {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .reset-form {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .reset-form.open {
+    display: flex;
+  }
+  .reset-form input {
+    margin-bottom: 0;
+    flex: 1;
+  }
+  .reset-form .reset-error {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  .reset-form .reset-success {
+    color: #6ee7a0;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1>Headteacher Dashboard</h1>
+    <div class="header-links">
+      <a href="/">Reference tool</a>
+      <a href="/api/logout">Log out</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>Add a teacher</h2>
+    <form id="teacher-form">
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="off" required>
+
+      <label for="password">Password</label>
+      <input id="password" type="text" autocomplete="off" required>
+
+      <label for="display-name">Teacher name</label>
+      <input id="display-name" type="text" autocomplete="off">
+
+      <p class="error" id="form-error"></p>
+      <p class="success" id="form-success"></p>
+
+      <button type="submit" id="submit-btn">Add teacher</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Teachers</h2>
+    <div id="roster-container">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+  </section>
+</main>
+
+<script>
+  async function checkRole() {
+    try {
+      const res = await fetch("/api/me");
+      if (!res.ok) { window.location.href = "/"; return; }
+      const data = await res.json();
+      if (data.role !== "headteacher") { window.location.href = "/"; }
+    } catch {
+      window.location.href = "/";
+    }
+  }
+
+  async function loadTeachers() {
+    const container = document.getElementById("roster-container");
+
+    let rows;
+    try {
+      const res = await fetch("/api/headteacher/teachers");
+      const data = await res.json();
+      rows = data.rows || [];
+    } catch {
+      container.innerHTML = '<p class="error">Could not load teachers.</p>';
+      return;
+    }
+
+    renderRoster(container, rows);
+  }
+
+  function renderRoster(container, rows) {
+    if (rows.length === 0) {
+      container.innerHTML = '<p class="empty">No teachers yet. Add one above.</p>';
+      return;
+    }
+
+    const list = document.createElement("ul");
+    list.id = "teachers-list";
+
+    rows.forEach((teacher) => {
+      const item = document.createElement("li");
+      item.className = "teacher-item";
+
+      const row = document.createElement("div");
+      row.className = "teacher-row";
+      row.innerHTML = `
+        <div class="teacher-info">
+          <span class="teacher-name"></span>
+          <span class="teacher-username"></span>
+        </div>
+      `;
+      row.querySelector(".teacher-name").textContent = teacher.display_name || teacher.username;
+      row.querySelector(".teacher-username").textContent = teacher.username;
+
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "reset-btn";
+      resetBtn.textContent = "Reset password";
+      row.appendChild(resetBtn);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "Delete";
+      row.appendChild(deleteBtn);
+
+      const deleteConfirm = document.createElement("div");
+      deleteConfirm.className = "delete-confirm";
+      deleteConfirm.innerHTML = `
+        <p>Delete <strong>${teacher.display_name || teacher.username}</strong>? This permanently removes their account and all of their students.</p>
+        <button type="button" class="delete-cancel-btn">Cancel</button>
+        <button type="button" class="delete-confirm-btn">Delete</button>
+      `;
+
+      const resetForm = document.createElement("div");
+      resetForm.className = "reset-form";
+      resetForm.innerHTML = `
+        <input type="text" placeholder="New password" class="reset-password-input" autocomplete="off">
+        <button type="button" class="reset-confirm-btn">Confirm</button>
+        <p class="reset-error"></p>
+        <p class="reset-success"></p>
+      `;
+
+      resetBtn.addEventListener("click", () => {
+        resetForm.classList.toggle("open");
+      });
+
+      const confirmBtn = resetForm.querySelector(".reset-confirm-btn");
+      const passwordInput = resetForm.querySelector(".reset-password-input");
+      const resetErrorEl = resetForm.querySelector(".reset-error");
+      const resetSuccessEl = resetForm.querySelector(".reset-success");
+
+      confirmBtn.addEventListener("click", async () => {
+        resetErrorEl.textContent = "";
+        resetSuccessEl.textContent = "";
+        const newPassword = passwordInput.value;
+        if (!newPassword) {
+          resetErrorEl.textContent = "Enter a new password.";
+          return;
+        }
+        confirmBtn.disabled = true;
+        try {
+          const res = await fetch("/api/headteacher/teachers/reset-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ teacherId: teacher.id, newPassword })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            resetSuccessEl.textContent = "Password updated.";
+            passwordInput.value = "";
+          } else {
+            resetErrorEl.textContent = data.error || "Could not reset password.";
+          }
+        } catch {
+          resetErrorEl.textContent = "Could not reach the server.";
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      });
+
+      deleteBtn.addEventListener("click", () => {
+        deleteConfirm.classList.toggle("open");
+      });
+
+      deleteConfirm.querySelector(".delete-cancel-btn").addEventListener("click", () => {
+        deleteConfirm.classList.remove("open");
+      });
+
+      deleteConfirm.querySelector(".delete-confirm-btn").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          const res = await fetch("/api/headteacher/teachers/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ teacherId: teacher.id })
+          });
+          if (res.ok) {
+            item.remove();
+            if (document.querySelectorAll(".teacher-item").length === 0) {
+              container.innerHTML = '<p class="empty">No teachers yet. Add one above.</p>';
+            }
+          } else {
+            btn.disabled = false;
+          }
+        } catch {
+          btn.disabled = false;
+        }
+      });
+
+      item.appendChild(row);
+      item.appendChild(resetForm);
+      item.appendChild(deleteConfirm);
+      list.appendChild(item);
+    });
+
+    container.innerHTML = "";
+    container.appendChild(list);
+  }
+
+  const form = document.getElementById("teacher-form");
+  const errorEl = document.getElementById("form-error");
+  const successEl = document.getElementById("form-success");
+  const submitBtn = document.getElementById("submit-btn");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.textContent = "";
+    successEl.textContent = "";
+    submitBtn.disabled = true;
+
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    const displayName = document.getElementById("display-name").value;
+
+    try {
+      const res = await fetch("/api/headteacher/teachers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        successEl.textContent = `Added teacher "${data.username}".`;
+        form.reset();
+        loadTeachers();
+      } else {
+        errorEl.textContent = data.error || "Could not add teacher.";
+      }
+    } catch {
+      errorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  checkRole();
+  loadTeachers();
+</script>
+</body>
+</html>

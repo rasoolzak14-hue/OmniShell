@@ -312,6 +312,49 @@ async function handleTeacherCreateStudent(request, env, session) {
   });
 }
 
+async function handleTeacherResetStudentPassword(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const studentId = Number(body && body.studentId);
+  const newPassword = (body && body.newPassword) || "";
+  if (!Number.isInteger(studentId) || !newPassword) {
+    return jsonError(400, "studentId and newPassword are required");
+  }
+
+  // Only allow resetting a password for a student that actually belongs to
+  // the calling teacher — never trust studentId alone.
+  const student = await env.DB
+    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'student'")
+    .bind(studentId, session.userId)
+    .first();
+
+  if (!student) {
+    return jsonError(404, "Student not found");
+  }
+
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const hashBytes = await pbkdf2Hash(newPassword, saltBytes);
+
+  await env.DB
+    .prepare("UPDATE schools SET salt = ?, hash = ? WHERE id = ?")
+    .bind(toHex(saltBytes), toHex(hashBytes), studentId)
+    .run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
 async function handleTeacherProgress(env, session) {
   if (session.role !== "teacher") {
     return jsonError(403, "Forbidden");
@@ -411,6 +454,9 @@ export default {
     }
     if (pathname === "/api/teacher/students" && method === "POST") {
       return handleTeacherCreateStudent(request, env, session);
+    }
+    if (pathname === "/api/teacher/students/reset-password" && method === "POST") {
+      return handleTeacherResetStudentPassword(request, env, session);
     }
     if (pathname === "/api/teacher/progress" && method === "GET") {
       return handleTeacherProgress(env, session);

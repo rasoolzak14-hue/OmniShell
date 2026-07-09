@@ -135,6 +135,44 @@
     padding: 16px 0;
     text-align: center;
   }
+  .reset-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .reset-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .reset-row td {
+    padding: 0;
+    border-bottom: none;
+  }
+  .reset-form {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px 12px;
+  }
+  .reset-form.open {
+    display: flex;
+  }
+  .reset-form input {
+    margin-bottom: 0;
+    flex: 1;
+  }
+  .reset-form .reset-error {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  .reset-form .reset-success {
+    color: #6ee7a0;
+    font-size: 0.8rem;
+    margin: 0;
+  }
 </style>
 </head>
 <body>
@@ -168,6 +206,13 @@
   </section>
 
   <section class="card">
+    <h2>Manage students</h2>
+    <div id="roster-container">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+  </section>
+
+  <section class="card">
     <h2>Student progress</h2>
     <div id="progress-container">
       <p class="muted">Loading&hellip;</p>
@@ -188,41 +233,145 @@
   }
 
   async function loadProgress() {
-    const container = document.getElementById("progress-container");
+    const progressContainer = document.getElementById("progress-container");
+    const rosterContainer = document.getElementById("roster-container");
+
+    let rows;
     try {
       const res = await fetch("/api/teacher/progress");
       const data = await res.json();
-      const rows = data.rows || [];
+      rows = data.rows || [];
+    } catch {
+      progressContainer.innerHTML = '<p class="error">Could not load progress.</p>';
+      rosterContainer.innerHTML = '<p class="error">Could not load students.</p>';
+      return;
+    }
 
-      if (rows.length === 0) {
-        container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
-        return;
+    renderRoster(rosterContainer, rows);
+    renderProgress(progressContainer, rows);
+  }
+
+  function renderRoster(container, rows) {
+    const seen = new Map();
+    rows.forEach((row) => {
+      if (!seen.has(row.student_id)) {
+        seen.set(row.student_id, { id: row.student_id, name: row.display_name || row.username, username: row.username });
       }
+    });
+    const students = Array.from(seen.values());
 
-      const table = document.createElement("table");
-      table.innerHTML = `
-        <thead>
-          <tr><th>Student</th><th>Language</th><th>Score</th><th>Date</th></tr>
-        </thead>
-        <tbody></tbody>
+    if (students.length === 0) {
+      container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
+      return;
+    }
+
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <thead>
+        <tr><th>Student</th><th>Username</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    `;
+    const tbody = table.querySelector("tbody");
+
+    students.forEach((student) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${student.name}</td><td>${student.username}</td><td></td>`;
+
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "reset-btn";
+      resetBtn.textContent = "Reset password";
+      tr.children[2].appendChild(resetBtn);
+      tbody.appendChild(tr);
+
+      const formRow = document.createElement("tr");
+      formRow.className = "reset-row";
+      const formCell = document.createElement("td");
+      formCell.colSpan = 3;
+
+      const resetForm = document.createElement("div");
+      resetForm.className = "reset-form";
+      resetForm.innerHTML = `
+        <input type="text" placeholder="New password" class="reset-password-input" autocomplete="off">
+        <button type="button" class="reset-confirm-btn">Confirm</button>
+        <p class="reset-error"></p>
+        <p class="reset-success"></p>
       `;
-      const tbody = table.querySelector("tbody");
+      formCell.appendChild(resetForm);
+      formRow.appendChild(formCell);
+      tbody.appendChild(formRow);
 
-      rows.forEach((row) => {
-        const tr = document.createElement("tr");
-        const name = row.display_name || row.username;
-        const provider = row.provider || "—";
-        const score = row.provider ? `${row.score} / ${row.total}` : "—";
-        const date = row.completed_at ? new Date(row.completed_at).toLocaleDateString() : "No attempts yet";
-        tr.innerHTML = `<td>${name}</td><td>${provider}</td><td>${score}</td><td>${date}</td>`;
-        tbody.appendChild(tr);
+      resetBtn.addEventListener("click", () => {
+        resetForm.classList.toggle("open");
       });
 
-      container.innerHTML = "";
-      container.appendChild(table);
-    } catch {
-      container.innerHTML = '<p class="error">Could not load progress.</p>';
+      const confirmBtn = resetForm.querySelector(".reset-confirm-btn");
+      const passwordInput = resetForm.querySelector(".reset-password-input");
+      const resetErrorEl = resetForm.querySelector(".reset-error");
+      const resetSuccessEl = resetForm.querySelector(".reset-success");
+
+      confirmBtn.addEventListener("click", async () => {
+        resetErrorEl.textContent = "";
+        resetSuccessEl.textContent = "";
+        const newPassword = passwordInput.value;
+        if (!newPassword) {
+          resetErrorEl.textContent = "Enter a new password.";
+          return;
+        }
+        confirmBtn.disabled = true;
+        try {
+          const res = await fetch("/api/teacher/students/reset-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ studentId: student.id, newPassword })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            resetSuccessEl.textContent = "Password updated.";
+            passwordInput.value = "";
+          } else {
+            resetErrorEl.textContent = data.error || "Could not reset password.";
+          }
+        } catch {
+          resetErrorEl.textContent = "Could not reach the server.";
+        } finally {
+          confirmBtn.disabled = false;
+        }
+      });
+    });
+
+    container.innerHTML = "";
+    container.appendChild(table);
+  }
+
+  function renderProgress(container, rows) {
+    if (rows.length === 0) {
+      container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
+      return;
     }
+
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <thead>
+        <tr><th>Student</th><th>Language</th><th>Score</th><th>Date</th></tr>
+      </thead>
+      <tbody></tbody>
+    `;
+    const tbody = table.querySelector("tbody");
+
+    rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      const name = row.display_name || row.username;
+      const provider = row.provider || "—";
+      const score = row.provider ? `${row.score} / ${row.total}` : "—";
+      const date = row.completed_at ? new Date(row.completed_at).toLocaleDateString() : "No attempts yet";
+      tr.innerHTML = `<td>${name}</td><td>${provider}</td><td>${score}</td><td>${date}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    container.innerHTML = "";
+    container.appendChild(table);
   }
 
   const form = document.getElementById("student-form");

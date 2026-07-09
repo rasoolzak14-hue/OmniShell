@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniShell &mdash; Teacher Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 64px;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  .header-links {
+    display: flex;
+    gap: 8px;
+  }
+  .header-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+  .header-links a:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  h2 {
+    margin: 0 0 16px;
+    font-size: 1.05rem;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  button {
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .success {
+    color: #6ee7a0;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .empty {
+    color: var(--muted);
+    padding: 16px 0;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1>Teacher Dashboard</h1>
+    <div class="header-links">
+      <a href="/">Reference tool</a>
+      <a href="/api/logout">Log out</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>Add a student</h2>
+    <form id="student-form">
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="off" required>
+
+      <label for="password">Password</label>
+      <input id="password" type="text" autocomplete="off" required>
+
+      <label for="display-name">Student name</label>
+      <input id="display-name" type="text" autocomplete="off">
+
+      <p class="error" id="form-error"></p>
+      <p class="success" id="form-success"></p>
+
+      <button type="submit" id="submit-btn">Add student</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Student progress</h2>
+    <div id="progress-container">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+  </section>
+</main>
+
+<script>
+  async function checkRole() {
+    try {
+      const res = await fetch("/api/me");
+      if (!res.ok) { window.location.href = "/"; return; }
+      const data = await res.json();
+      if (data.role !== "teacher") { window.location.href = "/"; }
+    } catch {
+      window.location.href = "/";
+    }
+  }
+
+  async function loadProgress() {
+    const container = document.getElementById("progress-container");
+    try {
+      const res = await fetch("/api/teacher/progress");
+      const data = await res.json();
+      const rows = data.rows || [];
+
+      if (rows.length === 0) {
+        container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
+        return;
+      }
+
+      const table = document.createElement("table");
+      table.innerHTML = `
+        <thead>
+          <tr><th>Student</th><th>Language</th><th>Score</th><th>Date</th></tr>
+        </thead>
+        <tbody></tbody>
+      `;
+      const tbody = table.querySelector("tbody");
+
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        const name = row.display_name || row.username;
+        const provider = row.provider || "—";
+        const score = row.provider ? `${row.score} / ${row.total}` : "—";
+        const date = row.completed_at ? new Date(row.completed_at).toLocaleDateString() : "No attempts yet";
+        tr.innerHTML = `<td>${name}</td><td>${provider}</td><td>${score}</td><td>${date}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      container.innerHTML = "";
+      container.appendChild(table);
+    } catch {
+      container.innerHTML = '<p class="error">Could not load progress.</p>';
+    }
+  }
+
+  const form = document.getElementById("student-form");
+  const errorEl = document.getElementById("form-error");
+  const successEl = document.getElementById("form-success");
+  const submitBtn = document.getElementById("submit-btn");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.textContent = "";
+    successEl.textContent = "";
+    submitBtn.disabled = true;
+
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    const displayName = document.getElementById("display-name").value;
+
+    try {
+      const res = await fetch("/api/teacher/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        successEl.textContent = `Added student "${data.username}".`;
+        form.reset();
+        loadProgress();
+      } else {
+        errorEl.textContent = data.error || "Could not add student.";
+      }
+    } catch {
+      errorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  checkRole();
+  loadProgress();
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const searchInput = document.getElementById("search-input");
 const resultCount = document.getElementById("result-count");
 const commandList = document.getElementById("command-list");
 const backBtn = document.getElementById("back-btn");
+const roleLink = document.getElementById("role-link");
 
 let synonyms = {};        // { providerId: { normalizedPhrase: canonicalCommand } }
 let activeProviderId = "";
@@ -158,4 +159,24 @@ searchInput.addEventListener("input", () => {
   render(search(searchInput.value));
 });
 
+async function loadRoleLink() {
+  try {
+    const res = await fetch("/api/me");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.role === "teacher") {
+      roleLink.textContent = "Teacher Dashboard";
+      roleLink.href = "/teacher.html";
+      roleLink.hidden = false;
+    } else if (data.role === "student") {
+      roleLink.textContent = "Take a Quiz";
+      roleLink.href = "/quiz.html";
+      roleLink.hidden = false;
+    }
+  } catch (e) {
+    console.warn("Could not load role", e);
+  }
+}
+
 loadSynonyms();
+loadRoleLink();

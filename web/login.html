@@ -63,6 +63,28 @@
     outline: none;
     border-color: var(--accent);
   }
+  .field-with-toggle {
+    position: relative;
+  }
+  .field-with-toggle input {
+    padding-right: 56px;
+  }
+  .toggle-visibility {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    width: auto;
+  }
+  .toggle-visibility:hover {
+    color: var(--text);
+  }
   button {
     width: 100%;
     padding: 10px 12px;
@@ -96,7 +118,10 @@
   <input id="username" name="username" type="text" autocomplete="username" required>
 
   <label for="password">Password</label>
-  <input id="password" name="password" type="password" autocomplete="current-password" required>
+  <div class="field-with-toggle">
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="button" class="toggle-visibility" data-target="password">Show</button>
+  </div>
 
   <p class="error" id="error"></p>
 
@@ -107,6 +132,15 @@
   const form = document.getElementById("login-form");
   const errorEl = document.getElementById("error");
   const submitBtn = document.getElementById("submit-btn");
+
+  document.querySelectorAll(".toggle-visibility").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = document.getElementById(btn.dataset.target);
+      const showing = target.type === "text";
+      target.type = showing ? "password" : "text";
+      btn.textContent = showing ? "Show" : "Hide";
+    });
+  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

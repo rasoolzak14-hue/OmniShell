@@ -64,6 +64,28 @@
     outline: none;
     border-color: var(--accent);
   }
+  .field-with-toggle {
+    position: relative;
+  }
+  .field-with-toggle input {
+    padding-right: 56px;
+  }
+  .toggle-visibility {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    width: auto;
+  }
+  .toggle-visibility:hover {
+    color: var(--text);
+  }
   .checkbox-row {
     display: flex;
     align-items: center;
@@ -117,7 +139,10 @@
   <p class="subtitle">Create a new school account</p>
 
   <label for="admin-token">Admin token</label>
-  <input id="admin-token" name="admin-token" type="password" autocomplete="off" required>
+  <div class="field-with-toggle">
+    <input id="admin-token" name="admin-token" type="password" autocomplete="off" required>
+    <button type="button" class="toggle-visibility" data-target="admin-token">Show</button>
+  </div>
 
   <div class="checkbox-row">
     <input id="remember-token" type="checkbox">
@@ -148,6 +173,15 @@
   const errorEl = document.getElementById("error");
   const successEl = document.getElementById("success");
   const submitBtn = document.getElementById("submit-btn");
+
+  document.querySelectorAll(".toggle-visibility").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = document.getElementById(btn.dataset.target);
+      const showing = target.type === "text";
+      target.type = showing ? "password" : "text";
+      btn.textContent = showing ? "Show" : "Hide";
+    });
+  });
 
   const savedToken = localStorage.getItem("omnishell_admin_token");
   if (savedToken) {

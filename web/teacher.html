@@ -146,15 +146,55 @@
     color: var(--text);
     border-color: var(--accent);
   }
-  .reset-row td {
+  #students-list {
+    list-style: none;
+    margin: 0;
     padding: 0;
-    border-bottom: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .student-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .student-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+  }
+  .student-row:hover,
+  .student-row.expanded {
+    background: rgba(79, 195, 247, 0.08);
+  }
+  .student-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .student-name {
+    font-weight: 600;
+  }
+  .student-username {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .student-caret {
+    color: var(--muted);
+    font-size: 0.75rem;
   }
   .reset-form {
     display: none;
     align-items: center;
     gap: 8px;
-    padding: 0 10px 12px;
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
   }
   .reset-form.open {
     display: flex;
@@ -172,6 +212,18 @@
     color: #6ee7a0;
     font-size: 0.8rem;
     margin: 0;
+  }
+  .attempts-panel {
+    border-top: 1px solid var(--border);
+    padding: 10px 14px 14px;
+    background: rgba(0, 0, 0, 0.15);
+  }
+  .attempts-panel table {
+    font-size: 0.85rem;
+  }
+  .attempts-panel .empty {
+    padding: 4px 0;
+    text-align: left;
   }
 </style>
 </head>
@@ -206,15 +258,8 @@
   </section>
 
   <section class="card">
-    <h2>Manage students</h2>
+    <h2>Students</h2>
     <div id="roster-container">
-      <p class="muted">Loading&hellip;</p>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>Student progress</h2>
-    <div id="progress-container">
       <p class="muted">Loading&hellip;</p>
     </div>
   </section>
@@ -233,7 +278,6 @@
   }
 
   async function loadProgress() {
-    const progressContainer = document.getElementById("progress-container");
     const rosterContainer = document.getElementById("roster-container");
 
     let rows;
@@ -242,53 +286,58 @@
       const data = await res.json();
       rows = data.rows || [];
     } catch {
-      progressContainer.innerHTML = '<p class="error">Could not load progress.</p>';
       rosterContainer.innerHTML = '<p class="error">Could not load students.</p>';
       return;
     }
 
     renderRoster(rosterContainer, rows);
-    renderProgress(progressContainer, rows);
   }
 
   function renderRoster(container, rows) {
-    const seen = new Map();
+    const students = new Map();
     rows.forEach((row) => {
-      if (!seen.has(row.student_id)) {
-        seen.set(row.student_id, { id: row.student_id, name: row.display_name || row.username, username: row.username });
+      if (!students.has(row.student_id)) {
+        students.set(row.student_id, {
+          id: row.student_id,
+          name: row.display_name || row.username,
+          username: row.username,
+          attempts: []
+        });
+      }
+      if (row.provider) {
+        students.get(row.student_id).attempts.push(row);
       }
     });
-    const students = Array.from(seen.values());
 
-    if (students.length === 0) {
+    if (students.size === 0) {
       container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
       return;
     }
 
-    const table = document.createElement("table");
-    table.innerHTML = `
-      <thead>
-        <tr><th>Student</th><th>Username</th><th></th></tr>
-      </thead>
-      <tbody></tbody>
-    `;
-    const tbody = table.querySelector("tbody");
+    const list = document.createElement("ul");
+    list.id = "students-list";
 
     students.forEach((student) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${student.name}</td><td>${student.username}</td><td></td>`;
+      const item = document.createElement("li");
+      item.className = "student-item";
+
+      const row = document.createElement("div");
+      row.className = "student-row";
+      row.innerHTML = `
+        <div class="student-info">
+          <span class="student-name"></span>
+          <span class="student-username"></span>
+        </div>
+        <span class="student-caret">▸</span>
+      `;
+      row.querySelector(".student-name").textContent = student.name;
+      row.querySelector(".student-username").textContent = student.username;
 
       const resetBtn = document.createElement("button");
       resetBtn.type = "button";
       resetBtn.className = "reset-btn";
       resetBtn.textContent = "Reset password";
-      tr.children[2].appendChild(resetBtn);
-      tbody.appendChild(tr);
-
-      const formRow = document.createElement("tr");
-      formRow.className = "reset-row";
-      const formCell = document.createElement("td");
-      formCell.colSpan = 3;
+      row.insertBefore(resetBtn, row.querySelector(".student-caret"));
 
       const resetForm = document.createElement("div");
       resetForm.className = "reset-form";
@@ -298,11 +347,38 @@
         <p class="reset-error"></p>
         <p class="reset-success"></p>
       `;
-      formCell.appendChild(resetForm);
-      formRow.appendChild(formCell);
-      tbody.appendChild(formRow);
 
-      resetBtn.addEventListener("click", () => {
+      const attemptsPanel = document.createElement("div");
+      attemptsPanel.className = "attempts-panel";
+      attemptsPanel.hidden = true;
+
+      if (student.attempts.length === 0) {
+        attemptsPanel.innerHTML = '<p class="empty">No quiz attempts yet.</p>';
+      } else {
+        const table = document.createElement("table");
+        table.innerHTML = `
+          <thead><tr><th>Language</th><th>Score</th><th>Date</th></tr></thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector("tbody");
+        student.attempts.forEach((attempt) => {
+          const tr = document.createElement("tr");
+          const date = new Date(attempt.completed_at).toLocaleDateString();
+          tr.innerHTML = `<td>${attempt.provider}</td><td>${attempt.score} / ${attempt.total}</td><td>${date}</td>`;
+          tbody.appendChild(tr);
+        });
+        attemptsPanel.appendChild(table);
+      }
+
+      const caret = row.querySelector(".student-caret");
+      row.addEventListener("click", () => {
+        attemptsPanel.hidden = !attemptsPanel.hidden;
+        row.classList.toggle("expanded", !attemptsPanel.hidden);
+        caret.textContent = attemptsPanel.hidden ? "▸" : "▾";
+      });
+
+      resetBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         resetForm.classList.toggle("open");
       });
 
@@ -310,6 +386,8 @@
       const passwordInput = resetForm.querySelector(".reset-password-input");
       const resetErrorEl = resetForm.querySelector(".reset-error");
       const resetSuccessEl = resetForm.querySelector(".reset-success");
+
+      resetForm.addEventListener("click", (e) => e.stopPropagation());
 
       confirmBtn.addEventListener("click", async () => {
         resetErrorEl.textContent = "";
@@ -339,39 +417,15 @@
           confirmBtn.disabled = false;
         }
       });
+
+      item.appendChild(row);
+      item.appendChild(resetForm);
+      item.appendChild(attemptsPanel);
+      list.appendChild(item);
     });
 
     container.innerHTML = "";
-    container.appendChild(table);
-  }
-
-  function renderProgress(container, rows) {
-    if (rows.length === 0) {
-      container.innerHTML = '<p class="empty">No students yet. Add one above.</p>';
-      return;
-    }
-
-    const table = document.createElement("table");
-    table.innerHTML = `
-      <thead>
-        <tr><th>Student</th><th>Language</th><th>Score</th><th>Date</th></tr>
-      </thead>
-      <tbody></tbody>
-    `;
-    const tbody = table.querySelector("tbody");
-
-    rows.forEach((row) => {
-      const tr = document.createElement("tr");
-      const name = row.display_name || row.username;
-      const provider = row.provider || "—";
-      const score = row.provider ? `${row.score} / ${row.total}` : "—";
-      const date = row.completed_at ? new Date(row.completed_at).toLocaleDateString() : "No attempts yet";
-      tr.innerHTML = `<td>${name}</td><td>${provider}</td><td>${score}</td><td>${date}</td>`;
-      tbody.appendChild(tr);
-    });
-
-    container.innerHTML = "";
-    container.appendChild(table);
+    container.appendChild(list);
   }
 
   const form = document.getElementById("student-form");

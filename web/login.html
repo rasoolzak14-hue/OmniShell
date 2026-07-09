@@ -71,19 +71,25 @@
   }
   .toggle-visibility {
     position: absolute;
-    right: 6px;
+    right: 4px;
     top: 50%;
     transform: translateY(-50%);
     background: none;
     border: none;
     color: var(--muted);
-    font-size: 0.8rem;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 6px;
     width: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .toggle-visibility:hover {
     color: var(--text);
+  }
+  .toggle-visibility svg {
+    width: 18px;
+    height: 18px;
   }
   button {
     width: 100%;
@@ -120,7 +126,7 @@
   <label for="password">Password</label>
   <div class="field-with-toggle">
     <input id="password" name="password" type="password" autocomplete="current-password" required>
-    <button type="button" class="toggle-visibility" data-target="password">Show</button>
+    <button type="button" class="toggle-visibility" data-target="password" aria-label="Show password"></button>
   </div>
 
   <p class="error" id="error"></p>
@@ -133,12 +139,17 @@
   const errorEl = document.getElementById("error");
   const submitBtn = document.getElementById("submit-btn");
 
+  const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"></path></svg>';
+
   document.querySelectorAll(".toggle-visibility").forEach((btn) => {
+    btn.innerHTML = EYE_ICON;
     btn.addEventListener("click", () => {
       const target = document.getElementById(btn.dataset.target);
       const showing = target.type === "text";
       target.type = showing ? "password" : "text";
-      btn.textContent = showing ? "Show" : "Hide";
+      btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
+      btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
     });
   });
 

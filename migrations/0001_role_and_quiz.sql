@@ -20,3 +20,4 @@ CREATE TABLE quiz_attempts (
 
 CREATE INDEX idx_quiz_attempts_student ON quiz_attempts(student_id);
 CREATE INDEX idx_schools_teacher_id ON schools(teacher_id);
+

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniShell &mdash; Admin</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .admin-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+    text-align: center;
+  }
+  .subtitle {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: -8px 0 16px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .checkbox-row input {
+    width: auto;
+    margin: 0;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+  }
+  button {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .success {
+    color: #6ee7a0;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+</style>
+</head>
+<body>
+
+<form class="admin-card" id="admin-form">
+  <h1>OmniShell Admin</h1>
+  <p class="subtitle">Create a new school account</p>
+
+  <label for="admin-token">Admin token</label>
+  <input id="admin-token" name="admin-token" type="password" autocomplete="off" required>
+
+  <div class="checkbox-row">
+    <input id="remember-token" type="checkbox">
+    <label for="remember-token" style="margin:0;">Remember token on this device</label>
+  </div>
+
+  <hr>
+
+  <label for="username">Username</label>
+  <input id="username" name="username" type="text" autocomplete="off" required>
+
+  <label for="password">Password</label>
+  <input id="password" name="password" type="text" autocomplete="off" required>
+
+  <label for="display-name">School name</label>
+  <input id="display-name" name="display-name" type="text" autocomplete="off">
+
+  <p class="error" id="error"></p>
+  <p class="success" id="success"></p>
+
+  <button type="submit" id="submit-btn">Create account</button>
+</form>
+
+<script>
+  const form = document.getElementById("admin-form");
+  const tokenInput = document.getElementById("admin-token");
+  const rememberBox = document.getElementById("remember-token");
+  const errorEl = document.getElementById("error");
+  const successEl = document.getElementById("success");
+  const submitBtn = document.getElementById("submit-btn");
+
+  const savedToken = localStorage.getItem("omnishell_admin_token");
+  if (savedToken) {
+    tokenInput.value = savedToken;
+    rememberBox.checked = true;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.textContent = "";
+    successEl.textContent = "";
+    submitBtn.disabled = true;
+
+    const token = tokenInput.value;
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    const displayName = document.getElementById("display-name").value;
+
+    try {
+      const res = await fetch("/api/admin/schools", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ username, password, displayName })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        successEl.textContent = `Created account "${data.username}".`;
+        if (rememberBox.checked) {
+          localStorage.setItem("omnishell_admin_token", token);
+        } else {
+          localStorage.removeItem("omnishell_admin_token");
+        }
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("display-name").value = "";
+      } else {
+        errorEl.textContent = data.error || "Could not create account.";
+      }
+    } catch {
+      errorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

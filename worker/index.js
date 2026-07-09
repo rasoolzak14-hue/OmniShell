@@ -264,6 +264,9 @@ export default {
     if (pathname === "/login.html" && method === "GET") {
       return env.ASSETS.fetch(request);
     }
+    if (pathname === "/admin.html" && method === "GET") {
+      return env.ASSETS.fetch(request);
+    }
     if (pathname === "/api/login" && method === "POST") {
       return handleLogin(request, env);
     }

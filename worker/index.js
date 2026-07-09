@@ -414,7 +414,17 @@ export default {
       return handleQuizAttempt(request, env, session);
     }
 
-    const assetResponse = await env.ASSETS.fetch(request);
+    // With html_handling set to "none" (needed to stop /login.html <-> /login
+    // redirect loops), Cloudflare no longer auto-resolves "/" to index.html,
+    // so we do it ourselves rather than relying on assets-layer behavior.
+    let assetRequest = request;
+    if (pathname === "/") {
+      const indexUrl = new URL(request.url);
+      indexUrl.pathname = "/index.html";
+      assetRequest = new Request(indexUrl.toString(), request);
+    }
+
+    const assetResponse = await env.ASSETS.fetch(assetRequest);
     const headers = new Headers(assetResponse.headers);
     headers.set("Cache-Control", "private, no-store");
     headers.append("Set-Cookie", sessionCookieHeader(await signSession(session, env)));

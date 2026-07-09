@@ -120,6 +120,40 @@
     color: var(--accent);
     margin: 8px 0 16px;
   }
+  .review {
+    margin-top: 24px;
+  }
+  .review-heading {
+    font-size: 1rem;
+    margin: 0 0 12px;
+    color: var(--text);
+  }
+  .review-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid #ff6b6b;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .review-question {
+    margin: 0 0 8px;
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    color: var(--accent);
+  }
+  .review-line {
+    margin: 4px 0;
+    font-size: 0.9rem;
+  }
+  .review-label {
+    color: var(--muted);
+  }
+  .your-answer .review-text {
+    color: #ff6b6b;
+  }
+  .correct-answer .review-text {
+    color: #6ee7a0;
+  }
   .muted {
     color: var(--muted);
   }
@@ -260,10 +294,14 @@
       submitBtn.disabled = true;
 
       let score = 0;
+      const mistakes = [];
       questions.forEach((q, qi) => {
         const selected = form.querySelector(`input[name="q${qi}"]:checked`);
-        if (selected && q.options[Number(selected.value)] === q.correct) {
+        const selectedText = selected ? q.options[Number(selected.value)] : null;
+        if (selectedText === q.correct) {
           score++;
+        } else {
+          mistakes.push({ question: q.question, yourAnswer: selectedText, correct: q.correct });
         }
       });
 
@@ -277,13 +315,13 @@
         // Show the result either way — the attempt not saving isn't worth blocking on.
       }
 
-      showResult(provider, score, questions.length);
+      showResult(provider, score, questions.length, mistakes);
     });
 
     content.appendChild(form);
   }
 
-  function showResult(provider, score, total) {
+  function showResult(provider, score, total, mistakes) {
     content.innerHTML = "";
     const card = document.createElement("div");
     card.className = "result-card";
@@ -297,6 +335,33 @@
     retryBtn.style.color = "var(--accent)";
     card.appendChild(retryBtn);
     content.appendChild(card);
+
+    if (mistakes && mistakes.length > 0) {
+      const review = document.createElement("div");
+      review.className = "review";
+
+      const heading = document.createElement("h2");
+      heading.className = "review-heading";
+      heading.textContent = "Review what you missed";
+      review.appendChild(heading);
+
+      mistakes.forEach((m) => {
+        const item = document.createElement("div");
+        item.className = "review-item";
+        item.innerHTML = `
+          <p class="review-question"></p>
+          <p class="review-line your-answer"><span class="review-label">Your answer:</span> <span class="review-text"></span></p>
+          <p class="review-line correct-answer"><span class="review-label">Correct answer:</span> <span class="review-text"></span></p>
+        `;
+        item.querySelector(".review-question").textContent = m.question;
+        const lines = item.querySelectorAll(".review-text");
+        lines[0].textContent = m.yourAnswer || "(no answer selected)";
+        lines[1].textContent = m.correct;
+        review.appendChild(item);
+      });
+
+      content.appendChild(review);
+    }
   }
 
   const params = new URLSearchParams(window.location.search);

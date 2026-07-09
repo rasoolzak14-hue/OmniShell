@@ -126,8 +126,13 @@ async function verifySession(cookieValue, env) {
   }
   if (payload.exp < Math.floor(Date.now() / 1000)) return null;
 
-  // Cookies issued before roles existed have no role/userId — every account
-  // that predates this was effectively teacher-level, so default accordingly.
+  // Cookies issued before userId/role existed are missing fields the newer
+  // handlers require (e.g. teacher_id on student creation). Rather than let
+  // those silently misbehave, treat them as invalid so the user is prompted
+  // to log in again and pick up a session with the current shape.
+  if (typeof payload.userId !== "number") {
+    return null;
+  }
   if (payload.role !== "teacher" && payload.role !== "student") {
     payload.role = "teacher";
   }

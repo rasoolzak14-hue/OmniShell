@@ -217,18 +217,21 @@ function handleLogout() {
   return new Response(null, { status: 302, headers });
 }
 
-async function handleAdminCreateSchool(request, env) {
-  // Admin creates headteacher accounts, which in turn create teachers, which
-  // create students. Fail closed if the admin token secret was never configured.
-  if (!env.ADMIN_TOKEN) {
-    return jsonError(403, "Admin endpoint disabled");
-  }
-
+// Shared by every /api/admin/* handler. Fails closed if the secret was never
+// configured, and compares in constant time.
+function checkAdminToken(request, env) {
+  if (!env.ADMIN_TOKEN) return false;
   const authHeader = request.headers.get("Authorization") || "";
   const provided = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   const providedBytes = new TextEncoder().encode(provided);
   const expectedBytes = new TextEncoder().encode(env.ADMIN_TOKEN);
-  if (!provided || !constantTimeEqual(providedBytes, expectedBytes)) {
+  return Boolean(provided) && constantTimeEqual(providedBytes, expectedBytes);
+}
+
+async function handleAdminCreateSchool(request, env) {
+  // Admin creates headteacher accounts, which in turn create teachers, which
+  // create students.
+  if (!checkAdminToken(request, env)) {
     return jsonError(403, "Forbidden");
   }
 
@@ -263,6 +266,225 @@ async function handleAdminCreateSchool(request, env) {
   // Deliberately never echoes back the hash/salt.
   return new Response(JSON.stringify({ ok: true, username }), {
     status: 201,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminListHeadteachers(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  const result = await env.DB
+    .prepare("SELECT id, username, display_name, active, created_at FROM schools WHERE role = 'headteacher' ORDER BY display_name")
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminListTeachers(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  const url = new URL(request.url);
+  const headteacherId = Number(url.searchParams.get("headteacherId"));
+  if (!Number.isInteger(headteacherId)) {
+    return jsonError(400, "headteacherId is required");
+  }
+
+  const result = await env.DB
+    .prepare("SELECT id, username, display_name, active FROM schools WHERE role = 'teacher' AND teacher_id = ? ORDER BY display_name")
+    .bind(headteacherId)
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminListStudents(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  const url = new URL(request.url);
+  const teacherId = Number(url.searchParams.get("teacherId"));
+  if (!Number.isInteger(teacherId)) {
+    return jsonError(400, "teacherId is required");
+  }
+
+  const result = await env.DB
+    .prepare("SELECT id, username, display_name, active FROM schools WHERE role = 'student' AND teacher_id = ? ORDER BY display_name")
+    .bind(teacherId)
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminResetPassword(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const accountId = Number(body && body.accountId);
+  const newPassword = (body && body.newPassword) || "";
+  if (!Number.isInteger(accountId) || !newPassword) {
+    return jsonError(400, "accountId and newPassword are required");
+  }
+
+  const account = await env.DB.prepare("SELECT id FROM schools WHERE id = ?").bind(accountId).first();
+  if (!account) {
+    return jsonError(404, "Account not found");
+  }
+
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const hashBytes = await pbkdf2Hash(newPassword, saltBytes);
+
+  await env.DB
+    .prepare("UPDATE schools SET salt = ?, hash = ? WHERE id = ?")
+    .bind(toHex(saltBytes), toHex(hashBytes), accountId)
+    .run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminRename(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const accountId = Number(body && body.accountId);
+  const displayName = ((body && body.displayName) || "").trim();
+  if (!Number.isInteger(accountId) || !displayName) {
+    return jsonError(400, "accountId and displayName are required");
+  }
+
+  const account = await env.DB.prepare("SELECT id FROM schools WHERE id = ?").bind(accountId).first();
+  if (!account) {
+    return jsonError(404, "Account not found");
+  }
+
+  await env.DB.prepare("UPDATE schools SET display_name = ? WHERE id = ?").bind(displayName, accountId).run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminSetActive(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const accountId = Number(body && body.accountId);
+  if (!Number.isInteger(accountId) || typeof (body && body.active) !== "boolean") {
+    return jsonError(400, "accountId and active are required");
+  }
+
+  const account = await env.DB.prepare("SELECT id FROM schools WHERE id = ?").bind(accountId).first();
+  if (!account) {
+    return jsonError(404, "Account not found");
+  }
+
+  await env.DB.prepare("UPDATE schools SET active = ? WHERE id = ?").bind(body.active ? 1 : 0, accountId).run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminDeleteAccount(request, env) {
+  if (!checkAdminToken(request, env)) {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const accountId = Number(body && body.accountId);
+  if (!Number.isInteger(accountId)) {
+    return jsonError(400, "accountId is required");
+  }
+
+  const account = await env.DB.prepare("SELECT id, role FROM schools WHERE id = ?").bind(accountId).first();
+  if (!account) {
+    return jsonError(404, "Account not found");
+  }
+
+  // Cascade deletion depth depends on the account's own role, so every
+  // descendant and their quiz history is cleaned up, nothing orphaned.
+  if (account.role === "headteacher") {
+    await env.DB
+      .prepare(
+        `DELETE FROM quiz_attempts WHERE student_id IN (
+           SELECT id FROM schools WHERE role = 'student' AND teacher_id IN (
+             SELECT id FROM schools WHERE role = 'teacher' AND teacher_id = ?
+           )
+         )`
+      )
+      .bind(accountId)
+      .run();
+    await env.DB
+      .prepare(
+        `DELETE FROM schools WHERE role = 'student' AND teacher_id IN (
+           SELECT id FROM schools WHERE role = 'teacher' AND teacher_id = ?
+         )`
+      )
+      .bind(accountId)
+      .run();
+    await env.DB.prepare("DELETE FROM schools WHERE role = 'teacher' AND teacher_id = ?").bind(accountId).run();
+  } else if (account.role === "teacher") {
+    await env.DB
+      .prepare("DELETE FROM quiz_attempts WHERE student_id IN (SELECT id FROM schools WHERE teacher_id = ? AND role = 'student')")
+      .bind(accountId)
+      .run();
+    await env.DB.prepare("DELETE FROM schools WHERE teacher_id = ? AND role = 'student'").bind(accountId).run();
+  } else {
+    await env.DB.prepare("DELETE FROM quiz_attempts WHERE student_id = ?").bind(accountId).run();
+  }
+
+  await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(accountId).run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
     headers: { "Content-Type": "application/json" }
   });
 }
@@ -620,6 +842,27 @@ export default {
     }
     if (pathname === "/api/admin/schools" && method === "POST") {
       return handleAdminCreateSchool(request, env);
+    }
+    if (pathname === "/api/admin/headteachers" && method === "GET") {
+      return handleAdminListHeadteachers(request, env);
+    }
+    if (pathname === "/api/admin/teachers" && method === "GET") {
+      return handleAdminListTeachers(request, env);
+    }
+    if (pathname === "/api/admin/students" && method === "GET") {
+      return handleAdminListStudents(request, env);
+    }
+    if (pathname === "/api/admin/accounts/reset-password" && method === "POST") {
+      return handleAdminResetPassword(request, env);
+    }
+    if (pathname === "/api/admin/accounts/rename" && method === "POST") {
+      return handleAdminRename(request, env);
+    }
+    if (pathname === "/api/admin/accounts/set-active" && method === "POST") {
+      return handleAdminSetActive(request, env);
+    }
+    if (pathname === "/api/admin/accounts/delete" && method === "POST") {
+      return handleAdminDeleteAccount(request, env);
     }
 
     // Everything else requires a valid session.

@@ -17,32 +17,34 @@
   body {
     margin: 0;
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     background: var(--bg);
     color: var(--text);
-    padding: 24px;
+    padding: 24px 16px 64px;
   }
-  .admin-card {
-    width: 100%;
-    max-width: 380px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 32px;
+  main {
+    max-width: 760px;
+    margin: 0 auto;
   }
   h1 {
     margin: 0 0 4px;
     font-size: 1.3rem;
-    text-align: center;
   }
   .subtitle {
     margin: 0 0 24px;
     color: var(--muted);
     font-size: 0.85rem;
-    text-align: center;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  h2 {
+    margin: 0 0 16px;
+    font-size: 1.05rem;
   }
   label {
     display: block;
@@ -104,14 +106,8 @@
     width: auto;
     margin: 0;
   }
-  hr {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 20px 0;
-  }
   button {
-    width: 100%;
-    padding: 10px 12px;
+    padding: 10px 16px;
     border-radius: 6px;
     border: none;
     background: var(--accent);
@@ -136,52 +132,220 @@
     margin: -8px 0 16px;
     min-height: 1em;
   }
+  .muted {
+    color: var(--muted);
+  }
+  .empty {
+    color: var(--muted);
+    padding: 16px 0;
+    text-align: center;
+  }
+  .roster-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+  .refresh-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .breadcrumb {
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    color: var(--muted);
+  }
+  .breadcrumb a {
+    color: var(--accent);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .breadcrumb a:hover {
+    text-decoration: underline;
+  }
+  #account-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .account-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .account-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    flex-wrap: wrap;
+  }
+  .account-row.clickable {
+    cursor: pointer;
+  }
+  .account-row.clickable:hover {
+    background: rgba(79, 195, 247, 0.08);
+  }
+  .account-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 120px;
+  }
+  .account-name {
+    font-weight: 600;
+  }
+  .account-username {
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .inactive-badge {
+    color: #ff6b6b;
+    font-size: 0.75rem;
+    border: 1px solid #ff6b6b;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+  .action-btn {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .action-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .action-btn.delete-btn {
+    color: #ff6b6b;
+  }
+  .action-btn.delete-btn:hover {
+    background: #ff6b6b;
+    color: #0f1115;
+    border-color: #ff6b6b;
+  }
+  .inline-form {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .inline-form.open {
+    display: flex;
+  }
+  .inline-form input {
+    margin-bottom: 0;
+    flex: 1;
+  }
+  .inline-form .inline-error {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  .inline-form .inline-success {
+    color: #6ee7a0;
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  .delete-confirm {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(255, 107, 107, 0.08);
+  }
+  .delete-confirm.open {
+    display: flex;
+  }
+  .delete-confirm p {
+    margin: 0;
+    font-size: 0.85rem;
+    flex: 1;
+  }
+  .delete-confirm-btn {
+    background: #ff6b6b;
+    color: #0f1115;
+  }
+  .delete-cancel-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
 </style>
 </head>
 <body>
 
-<form class="admin-card" id="admin-form">
+<main>
   <h1>OmniShell Admin</h1>
-  <p class="subtitle">Create a new school account</p>
+  <p class="subtitle">Manage every school, headteacher, teacher, and student.</p>
 
-  <label for="admin-token">Admin token</label>
-  <div class="field-with-toggle">
-    <input id="admin-token" name="admin-token" type="password" autocomplete="off" required>
-    <button type="button" class="toggle-visibility" data-target="admin-token" aria-label="Show admin token"></button>
-  </div>
+  <section class="card">
+    <h2>Admin token</h2>
+    <div class="field-with-toggle">
+      <input id="admin-token" type="password" autocomplete="off" placeholder="Admin token">
+      <button type="button" class="toggle-visibility" data-target="admin-token" aria-label="Show admin token"></button>
+    </div>
+    <div class="checkbox-row">
+      <input id="remember-token" type="checkbox">
+      <label for="remember-token" style="margin:0;">Remember token on this device</label>
+    </div>
+  </section>
 
-  <div class="checkbox-row">
-    <input id="remember-token" type="checkbox">
-    <label for="remember-token" style="margin:0;">Remember token on this device</label>
-  </div>
+  <section class="card">
+    <h2>Add a school</h2>
+    <form id="create-form">
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="off" required>
 
-  <hr>
+      <label for="password">Password</label>
+      <input id="password" type="text" autocomplete="off" required>
 
-  <label for="username">Username</label>
-  <input id="username" name="username" type="text" autocomplete="off" required>
+      <label for="display-name">School name</label>
+      <input id="display-name" type="text" autocomplete="off">
 
-  <label for="password">Password</label>
-  <input id="password" name="password" type="text" autocomplete="off" required>
+      <p class="error" id="form-error"></p>
+      <p class="success" id="form-success"></p>
 
-  <label for="display-name">School name</label>
-  <input id="display-name" name="display-name" type="text" autocomplete="off">
+      <button type="submit" id="submit-btn">Create account</button>
+    </form>
+  </section>
 
-  <p class="error" id="error"></p>
-  <p class="success" id="success"></p>
-
-  <button type="submit" id="submit-btn">Create account</button>
-</form>
+  <section class="card">
+    <div class="roster-header">
+      <h2 style="margin:0;">Schools</h2>
+      <button type="button" class="refresh-btn" id="refresh-btn">Refresh</button>
+    </div>
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <div id="roster-container">
+      <p class="muted">Enter your admin token above, then click Refresh.</p>
+    </div>
+  </section>
+</main>
 
 <script>
-  const form = document.getElementById("admin-form");
-  const tokenInput = document.getElementById("admin-token");
-  const rememberBox = document.getElementById("remember-token");
-  const errorEl = document.getElementById("error");
-  const successEl = document.getElementById("success");
-  const submitBtn = document.getElementById("submit-btn");
-
   const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"></path></svg>';
+
+  const tokenInput = document.getElementById("admin-token");
+  const rememberBox = document.getElementById("remember-token");
+  const rosterContainer = document.getElementById("roster-container");
+  const breadcrumbEl = document.getElementById("breadcrumb");
 
   document.querySelectorAll(".toggle-visibility").forEach((btn) => {
     btn.innerHTML = EYE_ICON;
@@ -190,7 +354,6 @@
       const showing = target.type === "text";
       target.type = showing ? "password" : "text";
       btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
-      btn.setAttribute("aria-label", showing ? "Show admin token" : "Hide admin token");
     });
   });
 
@@ -200,48 +363,369 @@
     rememberBox.checked = true;
   }
 
-  form.addEventListener("submit", async (e) => {
+  tokenInput.addEventListener("change", () => {
+    if (rememberBox.checked) localStorage.setItem("omnishell_admin_token", tokenInput.value);
+  });
+  rememberBox.addEventListener("change", () => {
+    if (rememberBox.checked) localStorage.setItem("omnishell_admin_token", tokenInput.value);
+    else localStorage.removeItem("omnishell_admin_token");
+  });
+
+  function adminFetch(url, options) {
+    options = options || {};
+    const headers = Object.assign({ "Authorization": "Bearer " + tokenInput.value }, options.headers || {});
+    return fetch(url, Object.assign({}, options, { headers }));
+  }
+
+  // ---------- create-headteacher form ----------
+
+  const createForm = document.getElementById("create-form");
+  const formErrorEl = document.getElementById("form-error");
+  const formSuccessEl = document.getElementById("form-success");
+  const submitBtn = document.getElementById("submit-btn");
+
+  createForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    errorEl.textContent = "";
-    successEl.textContent = "";
+    formErrorEl.textContent = "";
+    formSuccessEl.textContent = "";
     submitBtn.disabled = true;
 
-    const token = tokenInput.value;
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
     const displayName = document.getElementById("display-name").value;
 
     try {
-      const res = await fetch("/api/admin/schools", {
+      const res = await adminFetch("/api/admin/schools", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + token
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, displayName })
       });
-
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        successEl.textContent = `Created account "${data.username}".`;
-        if (rememberBox.checked) {
-          localStorage.setItem("omnishell_admin_token", token);
-        } else {
-          localStorage.removeItem("omnishell_admin_token");
-        }
-        document.getElementById("username").value = "";
-        document.getElementById("password").value = "";
-        document.getElementById("display-name").value = "";
+        formSuccessEl.textContent = `Created account "${data.username}".`;
+        createForm.reset();
+        if (view.level === "headteachers") loadRoster();
       } else {
-        errorEl.textContent = data.error || "Could not create account.";
+        formErrorEl.textContent = data.error || "Could not create account.";
       }
     } catch {
-      errorEl.textContent = "Could not reach the server. Try again.";
+      formErrorEl.textContent = "Could not reach the server. Try again.";
     } finally {
       submitBtn.disabled = false;
     }
   });
+
+  // ---------- browsable roster with breadcrumb drill-down ----------
+
+  let view = { level: "headteachers" };
+
+  function renderBreadcrumb() {
+    breadcrumbEl.innerHTML = "";
+
+    const schoolsLink = document.createElement("a");
+    schoolsLink.textContent = "Schools";
+    schoolsLink.addEventListener("click", () => {
+      view = { level: "headteachers" };
+      loadRoster();
+    });
+    breadcrumbEl.appendChild(schoolsLink);
+
+    if (view.level === "teachers" || view.level === "students") {
+      breadcrumbEl.appendChild(document.createTextNode(" / "));
+      const hLink = document.createElement("a");
+      hLink.textContent = view.headteacherName;
+      hLink.addEventListener("click", () => {
+        view = { level: "teachers", headteacherId: view.headteacherId, headteacherName: view.headteacherName };
+        loadRoster();
+      });
+      breadcrumbEl.appendChild(hLink);
+    }
+
+    if (view.level === "students") {
+      breadcrumbEl.appendChild(document.createTextNode(" / "));
+      const tSpan = document.createElement("span");
+      tSpan.textContent = view.teacherName;
+      breadcrumbEl.appendChild(tSpan);
+    }
+  }
+
+  async function loadRoster() {
+    renderBreadcrumb();
+    rosterContainer.innerHTML = '<p class="muted">Loading&hellip;</p>';
+
+    let url, level;
+    if (view.level === "headteachers") {
+      url = "/api/admin/headteachers";
+      level = "headteacher";
+    } else if (view.level === "teachers") {
+      url = "/api/admin/teachers?headteacherId=" + view.headteacherId;
+      level = "teacher";
+    } else {
+      url = "/api/admin/students?teacherId=" + view.teacherId;
+      level = "student";
+    }
+
+    try {
+      const res = await adminFetch(url);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        rosterContainer.innerHTML = `<p class="error">${data.error || "Could not load accounts."}</p>`;
+        return;
+      }
+      renderRoster(data.rows || [], level);
+    } catch {
+      rosterContainer.innerHTML = '<p class="error">Could not reach the server.</p>';
+    }
+  }
+
+  function renderRoster(rows, level) {
+    if (rows.length === 0) {
+      rosterContainer.innerHTML = '<p class="empty">No accounts here yet.</p>';
+      return;
+    }
+
+    const list = document.createElement("ul");
+    list.id = "account-list";
+
+    rows.forEach((account) => {
+      list.appendChild(buildAccountRow(account, level));
+    });
+
+    rosterContainer.innerHTML = "";
+    rosterContainer.appendChild(list);
+  }
+
+  function buildAccountRow(account, level) {
+    const item = document.createElement("li");
+    item.className = "account-item";
+
+    const row = document.createElement("div");
+    row.className = "account-row";
+    if (level !== "student") row.classList.add("clickable");
+
+    const info = document.createElement("div");
+    info.className = "account-info";
+    const nameEl = document.createElement("span");
+    nameEl.className = "account-name";
+    nameEl.textContent = account.display_name || account.username;
+    const usernameEl = document.createElement("span");
+    usernameEl.className = "account-username";
+    usernameEl.textContent = account.username;
+    info.appendChild(nameEl);
+    info.appendChild(usernameEl);
+    row.appendChild(info);
+
+    if (!account.active) {
+      const badge = document.createElement("span");
+      badge.className = "inactive-badge";
+      badge.textContent = "Inactive";
+      row.appendChild(badge);
+    }
+
+    const renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.className = "action-btn";
+    renameBtn.textContent = "Rename";
+    row.appendChild(renameBtn);
+
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "action-btn";
+    resetBtn.textContent = "Reset password";
+    row.appendChild(resetBtn);
+
+    const activeBtn = document.createElement("button");
+    activeBtn.type = "button";
+    activeBtn.className = "action-btn";
+    activeBtn.textContent = account.active ? "Deactivate" : "Activate";
+    row.appendChild(activeBtn);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "action-btn delete-btn";
+    deleteBtn.textContent = "Delete";
+    row.appendChild(deleteBtn);
+
+    const renameForm = document.createElement("div");
+    renameForm.className = "inline-form";
+    renameForm.innerHTML = `
+      <input type="text" placeholder="New display name" class="rename-input" autocomplete="off">
+      <button type="button" class="rename-confirm-btn">Confirm</button>
+      <p class="inline-error"></p>
+      <p class="inline-success"></p>
+    `;
+
+    const resetForm = document.createElement("div");
+    resetForm.className = "inline-form";
+    resetForm.innerHTML = `
+      <input type="text" placeholder="New password" class="reset-password-input" autocomplete="off">
+      <button type="button" class="reset-confirm-btn">Confirm</button>
+      <p class="inline-error"></p>
+      <p class="inline-success"></p>
+    `;
+
+    const deleteConfirm = document.createElement("div");
+    deleteConfirm.className = "delete-confirm";
+    deleteConfirm.innerHTML = `
+      <p>Delete <strong>${nameEl.textContent}</strong>? This permanently removes their account${level !== "student" ? " and everything under it" : ""}.</p>
+      <button type="button" class="delete-cancel-btn">Cancel</button>
+      <button type="button" class="delete-confirm-btn">Delete</button>
+    `;
+
+    // Stop clicks inside any inline panel from triggering row drill-down.
+    [renameForm, resetForm, deleteConfirm].forEach((panel) => {
+      panel.addEventListener("click", (e) => e.stopPropagation());
+    });
+
+    function stopAnd(fn) {
+      return (e) => { e.stopPropagation(); fn(e); };
+    }
+
+    renameBtn.addEventListener("click", stopAnd(() => renameForm.classList.toggle("open")));
+    resetBtn.addEventListener("click", stopAnd(() => resetForm.classList.toggle("open")));
+    deleteBtn.addEventListener("click", stopAnd(() => deleteConfirm.classList.toggle("open")));
+
+    activeBtn.addEventListener("click", stopAnd(async () => {
+      activeBtn.disabled = true;
+      try {
+        const res = await adminFetch("/api/admin/accounts/set-active", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId: account.id, active: !account.active })
+        });
+        if (res.ok) {
+          loadRoster();
+        } else {
+          activeBtn.disabled = false;
+        }
+      } catch {
+        activeBtn.disabled = false;
+      }
+    }));
+
+    const renameConfirmBtn = renameForm.querySelector(".rename-confirm-btn");
+    const renameInput = renameForm.querySelector(".rename-input");
+    const renameErrorEl = renameForm.querySelector(".inline-error");
+    const renameSuccessEl = renameForm.querySelector(".inline-success");
+
+    renameConfirmBtn.addEventListener("click", async () => {
+      renameErrorEl.textContent = "";
+      renameSuccessEl.textContent = "";
+      const displayName = renameInput.value.trim();
+      if (!displayName) {
+        renameErrorEl.textContent = "Enter a name.";
+        return;
+      }
+      renameConfirmBtn.disabled = true;
+      try {
+        const res = await adminFetch("/api/admin/accounts/rename", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId: account.id, displayName })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          renameSuccessEl.textContent = "Renamed.";
+          nameEl.textContent = displayName;
+        } else {
+          renameErrorEl.textContent = data.error || "Could not rename.";
+        }
+      } catch {
+        renameErrorEl.textContent = "Could not reach the server.";
+      } finally {
+        renameConfirmBtn.disabled = false;
+      }
+    });
+
+    const resetConfirmBtn = resetForm.querySelector(".reset-confirm-btn");
+    const resetPasswordInput = resetForm.querySelector(".reset-password-input");
+    const resetErrorEl = resetForm.querySelector(".inline-error");
+    const resetSuccessEl = resetForm.querySelector(".inline-success");
+
+    resetConfirmBtn.addEventListener("click", async () => {
+      resetErrorEl.textContent = "";
+      resetSuccessEl.textContent = "";
+      const newPassword = resetPasswordInput.value;
+      if (!newPassword) {
+        resetErrorEl.textContent = "Enter a new password.";
+        return;
+      }
+      resetConfirmBtn.disabled = true;
+      try {
+        const res = await adminFetch("/api/admin/accounts/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId: account.id, newPassword })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          resetSuccessEl.textContent = "Password updated.";
+          resetPasswordInput.value = "";
+        } else {
+          resetErrorEl.textContent = data.error || "Could not reset password.";
+        }
+      } catch {
+        resetErrorEl.textContent = "Could not reach the server.";
+      } finally {
+        resetConfirmBtn.disabled = false;
+      }
+    });
+
+    deleteConfirm.querySelector(".delete-cancel-btn").addEventListener("click", stopAnd(() => {
+      deleteConfirm.classList.remove("open");
+    }));
+
+    deleteConfirm.querySelector(".delete-confirm-btn").addEventListener("click", stopAnd(async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        const res = await adminFetch("/api/admin/accounts/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId: account.id })
+        });
+        if (res.ok) {
+          item.remove();
+          if (document.querySelectorAll(".account-item").length === 0) {
+            rosterContainer.innerHTML = '<p class="empty">No accounts here yet.</p>';
+          }
+        } else {
+          btn.disabled = false;
+        }
+      } catch {
+        btn.disabled = false;
+      }
+    }));
+
+    if (level !== "student") {
+      row.addEventListener("click", () => {
+        if (level === "headteacher") {
+          view = { level: "teachers", headteacherId: account.id, headteacherName: account.display_name || account.username };
+        } else if (level === "teacher") {
+          view = {
+            level: "students",
+            headteacherId: view.headteacherId,
+            headteacherName: view.headteacherName,
+            teacherId: account.id,
+            teacherName: account.display_name || account.username
+          };
+        }
+        loadRoster();
+      });
+    }
+
+    item.appendChild(row);
+    item.appendChild(renameForm);
+    item.appendChild(resetForm);
+    item.appendChild(deleteConfirm);
+    return item;
+  }
+
+  document.getElementById("refresh-btn").addEventListener("click", loadRoster);
+
+  renderBreadcrumb();
+  if (savedToken) loadRoster();
 </script>
 </body>
 </html>

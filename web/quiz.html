@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniShell &mdash; Quiz</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 64px;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  header a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+  header a:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  #picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .provider-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 14px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  .provider-card:hover {
+    border-color: var(--accent);
+  }
+  .question-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .question-title {
+    margin: 0 0 12px;
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    color: var(--accent);
+    font-size: 1rem;
+  }
+  .option-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  .option-label input {
+    margin-top: 4px;
+  }
+  #submit-quiz-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  #submit-quiz-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .result-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    text-align: center;
+  }
+  .result-score {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 8px 0 16px;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .error {
+    color: #ff6b6b;
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1 id="page-title">Quiz</h1>
+    <a href="/">Back to reference tool</a>
+  </header>
+
+  <div id="content">
+    <p class="muted">Loading&hellip;</p>
+  </div>
+</main>
+
+<script>
+  const PROVIDERS = [
+    { id: "linux", label: "Linux", file: "linux_commands.json" },
+    { id: "powershell", label: "PowerShell", file: "powershell_commands.json" },
+    { id: "python", label: "Python", file: "python_commands.json" },
+    { id: "javascript", label: "JavaScript", file: "javascript_commands.json" },
+    { id: "java", label: "Java", file: "java_commands.json" },
+    { id: "cpp", label: "C++", file: "cpp_commands.json" },
+    { id: "sql", label: "SQL", file: "sql_commands.json" },
+    { id: "git", label: "Git", file: "git_commands.json" }
+  ];
+  const MIN_COMMANDS_FOR_QUIZ = 6;
+  const QUESTION_COUNT = 8;
+
+  const content = document.getElementById("content");
+  const pageTitle = document.getElementById("page-title");
+
+  function shuffle(arr) {
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function showPicker() {
+    pageTitle.textContent = "Quiz";
+    content.innerHTML = "";
+    const grid = document.createElement("div");
+    grid.id = "picker";
+    PROVIDERS.forEach((p) => {
+      const card = document.createElement("button");
+      card.className = "provider-card";
+      card.textContent = p.label;
+      card.addEventListener("click", () => {
+        window.location.href = `/quiz.html?provider=${p.id}`;
+      });
+      grid.appendChild(card);
+    });
+    content.appendChild(grid);
+  }
+
+  function buildQuestions(commands) {
+    const pool = shuffle(commands).slice(0, QUESTION_COUNT);
+    return pool.map((c) => {
+      const otherDescriptions = commands
+        .filter((other) => other.description !== c.description)
+        .map((other) => other.description);
+      const distractors = shuffle(otherDescriptions).slice(0, 3);
+      const options = shuffle([c.description, ...distractors]);
+      return { question: c.command, correct: c.description, options };
+    });
+  }
+
+  async function startQuiz(providerId) {
+    const provider = PROVIDERS.find((p) => p.id === providerId);
+    if (!provider) {
+      showPicker();
+      return;
+    }
+
+    pageTitle.textContent = provider.label + " Quiz";
+    content.innerHTML = '<p class="muted">Loading&hellip;</p>';
+
+    let commands;
+    try {
+      const res = await fetch("data/" + provider.file);
+      commands = await res.json();
+    } catch {
+      content.innerHTML = '<p class="error">Could not load quiz content.</p>';
+      return;
+    }
+
+    if (!Array.isArray(commands) || commands.length < MIN_COMMANDS_FOR_QUIZ) {
+      content.innerHTML = '<p class="error">Not enough commands to build a quiz for this language yet.</p>';
+      return;
+    }
+
+    const questions = buildQuestions(commands);
+    renderQuiz(provider, questions);
+  }
+
+  function renderQuiz(provider, questions) {
+    content.innerHTML = "";
+    const form = document.createElement("form");
+    form.id = "quiz-form";
+
+    questions.forEach((q, qi) => {
+      const card = document.createElement("div");
+      card.className = "question-card";
+
+      const title = document.createElement("p");
+      title.className = "question-title";
+      title.textContent = `${qi + 1}. ${q.question}`;
+      card.appendChild(title);
+
+      q.options.forEach((opt, oi) => {
+        const label = document.createElement("label");
+        label.className = "option-label";
+        label.innerHTML = `<input type="radio" name="q${qi}" value="${oi}" required> <span></span>`;
+        label.querySelector("span").textContent = opt;
+        card.appendChild(label);
+      });
+
+      form.appendChild(card);
+    });
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "submit";
+    submitBtn.id = "submit-quiz-btn";
+    submitBtn.textContent = "Submit Quiz";
+    form.appendChild(submitBtn);
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+
+      let score = 0;
+      questions.forEach((q, qi) => {
+        const selected = form.querySelector(`input[name="q${qi}"]:checked`);
+        if (selected && q.options[Number(selected.value)] === q.correct) {
+          score++;
+        }
+      });
+
+      try {
+        await fetch("/api/quiz/attempts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider: provider.id, score, total: questions.length })
+        });
+      } catch {
+        // Show the result either way — the attempt not saving isn't worth blocking on.
+      }
+
+      showResult(provider, score, questions.length);
+    });
+
+    content.appendChild(form);
+  }
+
+  function showResult(provider, score, total) {
+    content.innerHTML = "";
+    const card = document.createElement("div");
+    card.className = "result-card";
+    card.innerHTML = `
+      <p class="muted">${provider.label} quiz complete</p>
+      <p class="result-score">${score} / ${total}</p>
+    `;
+    const retryBtn = document.createElement("a");
+    retryBtn.href = "/quiz.html";
+    retryBtn.textContent = "Try another quiz";
+    retryBtn.style.color = "var(--accent)";
+    card.appendChild(retryBtn);
+    content.appendChild(card);
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const providerParam = params.get("provider");
+  if (providerParam) {
+    startQuiz(providerParam);
+  } else {
+    showPicker();
+  }
+</script>
+</body>
+</html>

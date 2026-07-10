@@ -199,6 +199,11 @@
     ocr_gcse_cs: { label: "OCR GCSE Computer Science", file: "syllabus_ocr_gcse_cs.json" },
     edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", file: "syllabus_edexcel_gcse_cs.json" }
   };
+  // OCR (only, for now) also pulls Python out of "Extra learning material"
+  // and into "Syllabus" alongside the topic quiz — mirrors index.html.
+  const SYLLABUS_PRIMARY_LANGUAGE = {
+    ocr_gcse_cs: "python"
+  };
   const MIN_COMMANDS_FOR_QUIZ = 6;
   const QUESTION_COUNT = 8;
 
@@ -219,6 +224,7 @@
   function showPicker() {
     pageTitle.textContent = "Quiz";
     content.innerHTML = "";
+    const primaryLangId = SYLLABUS_PRIMARY_LANGUAGE[currentSyllabus];
 
     if (currentSyllabus && SYLLABUS_META[currentSyllabus]) {
       const heading = document.createElement("h2");
@@ -236,6 +242,18 @@
         window.location.href = `/quiz.html?provider=syllabus_${currentSyllabus}`;
       });
       syllabusGrid.appendChild(card);
+
+      const primaryLangProvider = primaryLangId && PROVIDERS.find((p) => p.id === primaryLangId);
+      if (primaryLangProvider) {
+        const langCard = document.createElement("button");
+        langCard.className = "provider-card";
+        langCard.textContent = primaryLangProvider.label;
+        langCard.addEventListener("click", () => {
+          window.location.href = `/quiz.html?provider=${primaryLangProvider.id}`;
+        });
+        syllabusGrid.appendChild(langCard);
+      }
+
       content.appendChild(syllabusGrid);
 
       const extraHeading = document.createElement("h2");
@@ -246,7 +264,7 @@
 
     const grid = document.createElement("div");
     grid.id = "picker";
-    PROVIDERS.forEach((p) => {
+    PROVIDERS.filter((p) => p.id !== primaryLangId).forEach((p) => {
       const card = document.createElement("button");
       card.className = "provider-card";
       card.textContent = p.label;

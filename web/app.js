@@ -9,6 +9,13 @@ const SYLLABUS_META = {
   edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", hint: "1CP2 specification" }
 };
 
+// OCR's practical component is taught in Python at almost every UK school,
+// so for OCR (only, for now) the Python card moves out of "Extra learning
+// material" and sits alongside the topic browser under "Syllabus".
+const SYLLABUS_PRIMARY_LANGUAGE = {
+  ocr_gcse_cs: "python"
+};
+
 const providerSelect = document.getElementById("provider-select");
 const providerView = document.getElementById("provider-view");
 const providerTitle = document.getElementById("provider-title");
@@ -92,8 +99,15 @@ async function loadSyllabusCard() {
     card.querySelector(".provider-name").textContent = meta.label;
     card.querySelector(".provider-hint").textContent = meta.hint;
 
-    document.getElementById("extra-heading").before(card);
+    const extraHeading = document.getElementById("extra-heading");
+    extraHeading.before(card);
     document.getElementById("syllabus-empty").hidden = true;
+
+    const primaryLangId = SYLLABUS_PRIMARY_LANGUAGE[data.syllabus];
+    if (primaryLangId) {
+      const langCard = document.querySelector(`.provider-card[data-provider="${primaryLangId}"]`);
+      if (langCard) extraHeading.before(langCard);
+    }
   } catch (e) {
     console.warn("Could not load syllabus", e);
   }

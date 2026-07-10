@@ -3,6 +3,12 @@
 
 const DATA_DIR = "data/";
 
+const SYLLABUS_META = {
+  aqa_gcse_cs: { label: "AQA GCSE Computer Science", hint: "8525 specification" },
+  ocr_gcse_cs: { label: "OCR GCSE Computer Science", hint: "J277 specification" },
+  edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", hint: "1CP2 specification" }
+};
+
 const providerSelect = document.getElementById("provider-select");
 const providerView = document.getElementById("provider-view");
 const providerTitle = document.getElementById("provider-title");
@@ -40,9 +46,8 @@ async function loadSynonyms() {
   }
 }
 
-async function loadProvider(providerId, title, file) {
-  const res = await fetch(DATA_DIR + file);
-  commands = await res.json();
+function showProviderView(providerId, title, commandsArray) {
+  commands = commandsArray;
   activeProviderId = providerId;
   providerTitle.textContent = title;
   providerSelect.hidden = true;
@@ -50,6 +55,48 @@ async function loadProvider(providerId, title, file) {
   searchInput.value = "";
   render(commands);
   searchInput.focus();
+}
+
+async function loadProvider(providerId, title, file) {
+  const res = await fetch(DATA_DIR + file);
+  const data = await res.json();
+  showProviderView(providerId, title, data);
+}
+
+async function loadSyllabusProvider(key, title) {
+  const res = await fetch(DATA_DIR + "syllabus_" + key + ".json");
+  const topics = await res.json();
+  const mapped = topics.map((t) => ({
+    command: t.title,
+    description: t.section + " — " + t.explanation,
+    examples: t.code ? [t.code] : []
+  }));
+  showProviderView("syllabus_" + key, title, mapped);
+}
+
+async function loadSyllabusCard() {
+  try {
+    const res = await fetch("/api/syllabus");
+    if (!res.ok) return;
+    const data = await res.json();
+    const meta = data.syllabus && SYLLABUS_META[data.syllabus];
+    if (!meta) return;
+
+    const card = document.createElement("button");
+    card.className = "provider-card";
+    card.dataset.syllabus = data.syllabus;
+    card.innerHTML = `
+      <span class="provider-name"></span>
+      <span class="provider-hint"></span>
+    `;
+    card.querySelector(".provider-name").textContent = meta.label;
+    card.querySelector(".provider-hint").textContent = meta.hint;
+
+    document.getElementById("extra-heading").before(card);
+    document.getElementById("syllabus-empty").hidden = true;
+  } catch (e) {
+    console.warn("Could not load syllabus", e);
+  }
 }
 
 function search(keyword) {
@@ -145,6 +192,10 @@ function render(list) {
 providerSelect.addEventListener("click", (e) => {
   const card = e.target.closest(".provider-card");
   if (!card) return;
+  if (card.dataset.syllabus) {
+    loadSyllabusProvider(card.dataset.syllabus, card.querySelector(".provider-name").textContent);
+    return;
+  }
   loadProvider(card.dataset.provider, card.querySelector(".provider-name").textContent, card.dataset.file);
 });
 
@@ -184,3 +235,4 @@ async function loadRoleLink() {
 
 loadSynonyms();
 loadRoleLink();
+loadSyllabusCard();

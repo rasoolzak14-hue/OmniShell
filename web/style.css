@@ -87,6 +87,25 @@ main {
   display: none;
 }
 
+.group-heading {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.group-heading:first-child {
+  margin-top: 0;
+}
+
+.small-note {
+  grid-column: 1 / -1;
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+}
+
 .provider-card {
   background: var(--panel);
   border: 1px solid var(--border);

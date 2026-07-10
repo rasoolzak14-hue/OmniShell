@@ -250,6 +250,20 @@
     border-radius: 4px;
     padding: 2px 6px;
   }
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -262,6 +276,20 @@
       <a href="/api/logout">Log out</a>
     </div>
   </header>
+
+  <section class="card">
+    <h2>Computer Science syllabus</h2>
+    <label for="syllabus-select">Exam board</label>
+    <select id="syllabus-select">
+      <option value="">Choose an exam board&hellip;</option>
+      <option value="aqa_gcse_cs">AQA GCSE Computer Science (8525)</option>
+      <option value="ocr_gcse_cs">OCR GCSE Computer Science (J277)</option>
+      <option value="edexcel_gcse_cs">Edexcel/Pearson GCSE Computer Science (1CP2)</option>
+    </select>
+    <p class="error" id="syllabus-error"></p>
+    <p class="success" id="syllabus-success"></p>
+    <button type="button" id="syllabus-save-btn">Save</button>
+  </section>
 
   <section class="card">
     <h2>Add a teacher</h2>
@@ -302,6 +330,56 @@
       window.location.href = "/";
     }
   }
+
+  // ---------- Computer Science syllabus ----------
+  // Headteacher only chooses the exam board here — the actual topic content
+  // is shown to teachers (teaching view) and students (via the reference
+  // tool and quizzes), not on this page.
+
+  const syllabusSelect = document.getElementById("syllabus-select");
+  const syllabusErrorEl = document.getElementById("syllabus-error");
+  const syllabusSuccessEl = document.getElementById("syllabus-success");
+  const syllabusSaveBtn = document.getElementById("syllabus-save-btn");
+
+  async function loadSyllabusChoice() {
+    try {
+      const res = await fetch("/api/headteacher/syllabus");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.syllabus) {
+        syllabusSelect.value = data.syllabus;
+      }
+    } catch {
+      // Leave the selector on its default option if this fails.
+    }
+  }
+
+  syllabusSaveBtn.addEventListener("click", async () => {
+    syllabusErrorEl.textContent = "";
+    syllabusSuccessEl.textContent = "";
+    const syllabus = syllabusSelect.value;
+    if (!syllabus) {
+      syllabusErrorEl.textContent = "Choose an exam board first.";
+      return;
+    }
+    syllabusSaveBtn.disabled = true;
+    try {
+      const res = await fetch("/api/headteacher/syllabus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syllabus })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        syllabusSuccessEl.textContent = "Saved. Teachers and students will now see this syllabus.";
+      } else {
+        syllabusErrorEl.textContent = data.error || "Could not save syllabus.";
+      }
+    } catch {
+      syllabusErrorEl.textContent = "Could not reach the server.";
+    } finally {
+      syllabusSaveBtn.disabled = false;
+    }
+  });
 
   // ---------- browsable roster: Teachers, drill into a teacher's Students ----------
 
@@ -569,6 +647,7 @@
 
   checkRole();
   loadRoster();
+  loadSyllabusChoice();
 </script>
 </body>
 </html>

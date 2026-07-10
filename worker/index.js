@@ -805,6 +805,89 @@ async function handleHeadteacherResetTeacherPassword(request, env, session) {
   });
 }
 
+const VALID_SYLLABUSES = ["aqa_gcse_cs", "ocr_gcse_cs", "edexcel_gcse_cs"];
+
+// Walks teacher_id up to the headteacher and returns their chosen syllabus,
+// regardless of whether the caller is the headteacher, one of their
+// teachers, or one of those teachers' students.
+async function resolveSyllabus(env, session) {
+  let headteacherId = null;
+
+  if (session.role === "headteacher") {
+    headteacherId = session.userId;
+  } else if (session.role === "teacher") {
+    const row = await env.DB.prepare("SELECT teacher_id FROM schools WHERE id = ?").bind(session.userId).first();
+    headteacherId = row ? row.teacher_id : null;
+  } else if (session.role === "student") {
+    const teacherRow = await env.DB.prepare("SELECT teacher_id FROM schools WHERE id = ?").bind(session.userId).first();
+    if (teacherRow && teacherRow.teacher_id) {
+      const htRow = await env.DB.prepare("SELECT teacher_id FROM schools WHERE id = ?").bind(teacherRow.teacher_id).first();
+      headteacherId = htRow ? htRow.teacher_id : null;
+    }
+  }
+
+  if (!headteacherId) return null;
+  const ht = await env.DB.prepare("SELECT syllabus FROM schools WHERE id = ?").bind(headteacherId).first();
+  return ht ? ht.syllabus : null;
+}
+
+// Read-only view for teachers/students of the syllabus their headteacher
+// chose. Deliberately returns null for the headteacher's own role — the
+// headteacher picks the syllabus but doesn't browse it themselves through
+// this endpoint (they use /api/headteacher/syllabus for that).
+async function handleGetSyllabus(env, session) {
+  if (session.role === "headteacher") {
+    return new Response(JSON.stringify({ syllabus: null }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const syllabus = await resolveSyllabus(env, session);
+  return new Response(JSON.stringify({ syllabus }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherGetSyllabus(env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  const row = await env.DB.prepare("SELECT syllabus FROM schools WHERE id = ?").bind(session.userId).first();
+
+  return new Response(JSON.stringify({ syllabus: (row && row.syllabus) || null }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherSetSyllabus(request, env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const syllabus = (body && body.syllabus) || "";
+  if (!VALID_SYLLABUSES.includes(syllabus)) {
+    return jsonError(400, "Invalid syllabus");
+  }
+
+  await env.DB.prepare("UPDATE schools SET syllabus = ? WHERE id = ?").bind(syllabus, session.userId).run();
+
+  return new Response(JSON.stringify({ ok: true, syllabus }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
 async function handleHeadteacherStudents(request, env, session) {
   if (session.role !== "headteacher") {
     return jsonError(403, "Forbidden");
@@ -978,6 +1061,9 @@ export default {
         headers: { "Content-Type": "application/json" }
       });
     }
+    if (pathname === "/api/syllabus" && method === "GET") {
+      return handleGetSyllabus(env, session);
+    }
     if (pathname === "/api/teacher/students" && method === "POST") {
       return handleTeacherCreateStudent(request, env, session);
     }
@@ -1004,6 +1090,12 @@ export default {
     }
     if (pathname === "/api/headteacher/students" && method === "GET") {
       return handleHeadteacherStudents(request, env, session);
+    }
+    if (pathname === "/api/headteacher/syllabus" && method === "GET") {
+      return handleHeadteacherGetSyllabus(env, session);
+    }
+    if (pathname === "/api/headteacher/syllabus" && method === "POST") {
+      return handleHeadteacherSetSyllabus(request, env, session);
     }
     if (pathname === "/api/quiz/attempts" && method === "POST") {
       return handleQuizAttempt(request, env, session);

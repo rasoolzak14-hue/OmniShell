@@ -53,6 +53,14 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
+    margin-bottom: 20px;
+  }
+  .picker-heading {
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
   .provider-card {
     background: var(--panel);
@@ -186,8 +194,15 @@
     { id: "sql", label: "SQL", file: "sql_commands.json" },
     { id: "git", label: "Git", file: "git_commands.json" }
   ];
+  const SYLLABUS_META = {
+    aqa_gcse_cs: { label: "AQA GCSE Computer Science", file: "syllabus_aqa_gcse_cs.json" },
+    ocr_gcse_cs: { label: "OCR GCSE Computer Science", file: "syllabus_ocr_gcse_cs.json" },
+    edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", file: "syllabus_edexcel_gcse_cs.json" }
+  };
   const MIN_COMMANDS_FOR_QUIZ = 6;
   const QUESTION_COUNT = 8;
+
+  let currentSyllabus = null;
 
   const content = document.getElementById("content");
   const pageTitle = document.getElementById("page-title");
@@ -204,6 +219,31 @@
   function showPicker() {
     pageTitle.textContent = "Quiz";
     content.innerHTML = "";
+
+    if (currentSyllabus && SYLLABUS_META[currentSyllabus]) {
+      const heading = document.createElement("h2");
+      heading.className = "picker-heading";
+      heading.textContent = "Syllabus";
+      content.appendChild(heading);
+
+      const syllabusGrid = document.createElement("div");
+      syllabusGrid.id = "picker";
+      const meta = SYLLABUS_META[currentSyllabus];
+      const card = document.createElement("button");
+      card.className = "provider-card";
+      card.textContent = meta.label;
+      card.addEventListener("click", () => {
+        window.location.href = `/quiz.html?provider=syllabus_${currentSyllabus}`;
+      });
+      syllabusGrid.appendChild(card);
+      content.appendChild(syllabusGrid);
+
+      const extraHeading = document.createElement("h2");
+      extraHeading.className = "picker-heading";
+      extraHeading.textContent = "Extra learning material";
+      content.appendChild(extraHeading);
+    }
+
     const grid = document.createElement("div");
     grid.id = "picker";
     PROVIDERS.forEach((p) => {
@@ -231,7 +271,12 @@
   }
 
   async function startQuiz(providerId) {
-    const provider = PROVIDERS.find((p) => p.id === providerId);
+    const isSyllabus = providerId.startsWith("syllabus_");
+    const syllabusKey = isSyllabus ? providerId.replace(/^syllabus_/, "") : null;
+    const provider = isSyllabus
+      ? (SYLLABUS_META[syllabusKey] ? { id: providerId, label: SYLLABUS_META[syllabusKey].label, file: SYLLABUS_META[syllabusKey].file } : null)
+      : PROVIDERS.find((p) => p.id === providerId);
+
     if (!provider) {
       showPicker();
       return;
@@ -243,14 +288,17 @@
     let commands;
     try {
       const res = await fetch("data/" + provider.file);
-      commands = await res.json();
+      const raw = await res.json();
+      commands = isSyllabus
+        ? raw.map((t) => ({ command: t.title, description: t.section + " — " + t.explanation }))
+        : raw;
     } catch {
       content.innerHTML = '<p class="error">Could not load quiz content.</p>';
       return;
     }
 
     if (!Array.isArray(commands) || commands.length < MIN_COMMANDS_FOR_QUIZ) {
-      content.innerHTML = '<p class="error">Not enough commands to build a quiz for this language yet.</p>';
+      content.innerHTML = '<p class="error">Not enough content to build a quiz for this yet.</p>';
       return;
     }
 
@@ -364,13 +412,27 @@
     }
   }
 
-  const params = new URLSearchParams(window.location.search);
-  const providerParam = params.get("provider");
-  if (providerParam) {
-    startQuiz(providerParam);
-  } else {
-    showPicker();
+  async function init() {
+    try {
+      const res = await fetch("/api/syllabus");
+      if (res.ok) {
+        const data = await res.json();
+        currentSyllabus = data.syllabus;
+      }
+    } catch {
+      // Fall back to just the language quizzes if this fails.
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const providerParam = params.get("provider");
+    if (providerParam) {
+      startQuiz(providerParam);
+    } else {
+      showPicker();
+    }
   }
+
+  init();
 </script>
 </body>
 </html>

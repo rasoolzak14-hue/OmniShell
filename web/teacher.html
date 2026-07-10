@@ -262,6 +262,71 @@
     padding: 4px 0;
     text-align: left;
   }
+  .syllabus-section-heading {
+    margin: 20px 0 8px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .syllabus-section-heading:first-child {
+    margin-top: 0;
+  }
+  .syllabus-topics-group {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .topic-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .topic-toggle {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 12px 14px;
+    cursor: pointer;
+  }
+  .topic-toggle:hover {
+    color: var(--accent);
+  }
+  .topic-detail {
+    display: none;
+    padding: 0 14px 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .topic-detail.open {
+    display: block;
+  }
+  .topic-detail p {
+    margin: 0 0 12px;
+    font-size: 0.88rem;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .topic-detail pre {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    margin: 0;
+  }
+  .topic-detail code {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 0.82rem;
+  }
 </style>
 </head>
 <body>
@@ -274,6 +339,13 @@
       <a href="/api/logout">Log out</a>
     </div>
   </header>
+
+  <section class="card">
+    <h2>Syllabus &mdash; teaching view</h2>
+    <div id="syllabus-content">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+  </section>
 
   <section class="card">
     <h2>Add a student</h2>
@@ -303,6 +375,91 @@
 </main>
 
 <script>
+  const SYLLABUS_LABELS = {
+    aqa_gcse_cs: "AQA GCSE Computer Science (8525)",
+    ocr_gcse_cs: "OCR GCSE Computer Science (J277)",
+    edexcel_gcse_cs: "Edexcel/Pearson GCSE Computer Science (1CP2)"
+  };
+
+  function formatProviderLabel(id) {
+    const key = id.replace(/^syllabus_/, "");
+    return SYLLABUS_LABELS[key] || id;
+  }
+
+  // ---------- Computer Science syllabus (teaching view) ----------
+  // Unlike the student-facing view, every topic starts expanded so a teacher
+  // can scan the full syllabus at a glance when planning a lesson.
+
+  async function loadSyllabus() {
+    const container = document.getElementById("syllabus-content");
+    try {
+      const res = await fetch("/api/syllabus");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.syllabus) {
+        container.innerHTML = '<p class="muted">Your headteacher hasn\'t chosen an exam board yet.</p>';
+        return;
+      }
+      const res2 = await fetch("data/syllabus_" + data.syllabus + ".json");
+      if (!res2.ok) throw new Error("not found");
+      const topics = await res2.json();
+      renderSyllabus(container, topics);
+    } catch {
+      container.innerHTML = '<p class="error">Could not load the syllabus.</p>';
+    }
+  }
+
+  function renderSyllabus(container, topics) {
+    container.innerHTML = "";
+    let lastSection = null;
+    let currentList = null;
+
+    topics.forEach((topic) => {
+      if (topic.section !== lastSection) {
+        lastSection = topic.section;
+        const heading = document.createElement("p");
+        heading.className = "syllabus-section-heading";
+        heading.textContent = topic.section;
+        container.appendChild(heading);
+
+        currentList = document.createElement("ul");
+        currentList.className = "syllabus-topics-group";
+        container.appendChild(currentList);
+      }
+
+      const item = document.createElement("li");
+      item.className = "topic-item";
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "topic-toggle";
+      toggle.textContent = topic.title;
+
+      const detail = document.createElement("div");
+      detail.className = "topic-detail open";
+
+      const explanation = document.createElement("p");
+      explanation.textContent = topic.explanation;
+      detail.appendChild(explanation);
+
+      if (topic.code) {
+        const pre = document.createElement("pre");
+        const codeEl = document.createElement("code");
+        codeEl.textContent = topic.code;
+        pre.appendChild(codeEl);
+        detail.appendChild(pre);
+      }
+
+      toggle.addEventListener("click", () => {
+        detail.classList.toggle("open");
+      });
+
+      item.appendChild(toggle);
+      item.appendChild(detail);
+
+      currentList.appendChild(item);
+    });
+  }
+
   async function checkRole() {
     try {
       const res = await fetch("/api/me");
@@ -415,7 +572,7 @@
         student.attempts.forEach((attempt) => {
           const tr = document.createElement("tr");
           const date = new Date(attempt.completed_at).toLocaleDateString();
-          tr.innerHTML = `<td>${attempt.provider}</td><td>${attempt.score} / ${attempt.total}</td><td>${date}</td>`;
+          tr.innerHTML = `<td>${formatProviderLabel(attempt.provider)}</td><td>${attempt.score} / ${attempt.total}</td><td>${date}</td>`;
           tbody.appendChild(tr);
         });
         attemptsPanel.appendChild(table);
@@ -552,6 +709,7 @@
 
   checkRole();
   loadProgress();
+  loadSyllabus();
 </script>
 </body>
 </html>

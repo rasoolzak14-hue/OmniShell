@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
 <title>OmniShell</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -10,6 +15,7 @@
 
 <header>
   <div class="header-links">
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
     <a id="role-link" hidden></a>
     <a id="logout-link" href="/api/logout">Log out</a>
   </div>

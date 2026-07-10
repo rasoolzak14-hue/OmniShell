@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
 <title>OmniShell &mdash; Admin</title>
 <style>
   :root {
@@ -12,6 +17,31 @@
     --text: #e6e6e6;
     --muted: #8a8f98;
     --accent: #4fc3f7;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #d7dce3;
+    --text: #1b1f24;
+    --muted: #5b6470;
+    --accent: #0284c7;
+  }
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
   }
   * { box-sizing: border-box; }
   body {
@@ -335,6 +365,8 @@
 </head>
 <body>
 
+<button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
+
 <main>
   <h1>OmniShell Admin</h1>
   <p class="subtitle">Manage every school, headteacher, teacher, and student.</p>
@@ -384,9 +416,19 @@
   <section class="card">
     <div class="roster-header">
       <h2 style="margin:0;">Login audit</h2>
-      <button type="button" class="refresh-btn" id="audit-refresh-btn">Refresh</button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="refresh-btn" id="audit-export-btn">Export CSV</button>
+        <button type="button" class="refresh-btn" id="audit-clear-btn">Clear</button>
+        <button type="button" class="refresh-btn" id="audit-refresh-btn">Refresh</button>
+      </div>
     </div>
-    <p class="muted" style="margin:0 0 12px;font-size:0.8rem;">Last 200 login attempts &mdash; successes and failures, across admin, headteachers, teachers, and students.</p>
+    <p class="muted" style="margin:0 0 12px;font-size:0.8rem;">Last 200 login attempts &mdash; successes and failures, across admin, headteachers, teachers, and students. Export covers every recorded entry, not just the 200 shown here.</p>
+    <p class="error" id="audit-export-error"></p>
+    <div class="delete-confirm" id="audit-clear-confirm">
+      <p>Clear <strong>all</strong> login audit entries? This can't be undone &mdash; export a copy first if you want to keep a record.</p>
+      <button type="button" class="delete-cancel-btn" id="audit-clear-cancel-btn">Cancel</button>
+      <button type="button" class="delete-confirm-btn" id="audit-clear-confirm-btn">Clear all</button>
+    </div>
     <div id="audit-container">
       <p class="muted">Enter your admin token above, then click Refresh.</p>
     </div>
@@ -394,6 +436,28 @@
 </main>
 
 <script>
+  const themeToggleBtn = document.getElementById("theme-toggle");
+
+  function updateThemeToggleLabel() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+    themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  }
+
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("omnishell_theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("omnishell_theme", "light");
+    }
+    updateThemeToggleLabel();
+  });
+
+  updateThemeToggleLabel();
+
   const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
   const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"></path></svg>';
 
@@ -842,6 +906,56 @@
   }
 
   document.getElementById("audit-refresh-btn").addEventListener("click", loadAuditLog);
+
+  // ---------- login audit: export / clear ----------
+
+  const auditExportErrorEl = document.getElementById("audit-export-error");
+  const auditClearConfirm = document.getElementById("audit-clear-confirm");
+
+  document.getElementById("audit-export-btn").addEventListener("click", async () => {
+    auditExportErrorEl.textContent = "";
+    try {
+      const res = await adminFetch("/api/admin/login-audit/export");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        auditExportErrorEl.textContent = data.error || "Could not export the audit log.";
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `login-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      auditExportErrorEl.textContent = "Could not reach the server.";
+    }
+  });
+
+  document.getElementById("audit-clear-btn").addEventListener("click", () => {
+    auditClearConfirm.classList.toggle("open");
+  });
+
+  document.getElementById("audit-clear-cancel-btn").addEventListener("click", () => {
+    auditClearConfirm.classList.remove("open");
+  });
+
+  document.getElementById("audit-clear-confirm-btn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await adminFetch("/api/admin/login-audit/clear", { method: "POST" });
+      if (res.ok) {
+        auditClearConfirm.classList.remove("open");
+        loadAuditLog();
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   renderBreadcrumb();
   if (savedToken) {

@@ -16,6 +16,28 @@ const SYLLABUS_PRIMARY_LANGUAGE = {
   ocr_gcse_cs: "python"
 };
 
+const themeToggleBtn = document.getElementById("theme-toggle");
+
+function updateThemeToggleLabel() {
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+  themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+}
+
+themeToggleBtn.addEventListener("click", () => {
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  if (isLight) {
+    document.documentElement.removeAttribute("data-theme");
+    localStorage.setItem("omnishell_theme", "dark");
+  } else {
+    document.documentElement.setAttribute("data-theme", "light");
+    localStorage.setItem("omnishell_theme", "light");
+  }
+  updateThemeToggleLabel();
+});
+
+updateThemeToggleLabel();
+
 const providerSelect = document.getElementById("provider-select");
 const providerView = document.getElementById("provider-view");
 const providerTitle = document.getElementById("provider-title");

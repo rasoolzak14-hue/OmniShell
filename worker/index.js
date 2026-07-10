@@ -584,6 +584,64 @@ async function handleAdminLoginAudit(request, env) {
   });
 }
 
+function csvField(value) {
+  const str = value === null || value === undefined ? "" : String(value);
+  if (/["\n,]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+async function handleAdminLoginAuditExport(request, env) {
+  if (!(await requireAdmin(request, env))) {
+    return jsonError(403, "Forbidden");
+  }
+
+  let result;
+  try {
+    result = await env.DB
+      .prepare(
+        "SELECT username, role, account_id, success, ip_address, user_agent, created_at FROM login_audit ORDER BY created_at DESC"
+      )
+      .all();
+  } catch (e) {
+    return jsonError(500, "Could not read login_audit — has migration 0003_login_audit.sql been run on this database? (" + e.message + ")");
+  }
+
+  // Exports every row, not just the 200 shown in the UI, so nothing is lost
+  // if the admin clears the table right after exporting.
+  const header = ["Timestamp", "Username", "Role", "Account ID", "Success", "IP address", "User agent"];
+  const lines = [header.map(csvField).join(",")];
+  for (const row of result.results || []) {
+    lines.push(
+      [row.created_at, row.username, row.role, row.account_id, row.success ? "Yes" : "No", row.ip_address, row.user_agent]
+        .map(csvField)
+        .join(",")
+    );
+  }
+
+  return new Response(lines.join("\r\n"), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="login-audit-${new Date().toISOString().slice(0, 10)}.csv"`
+    }
+  });
+}
+
+async function handleAdminLoginAuditClear(request, env) {
+  if (!(await requireAdmin(request, env))) {
+    return jsonError(403, "Forbidden");
+  }
+
+  await env.DB.prepare("DELETE FROM login_audit").run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
 async function handleTeacherCreateStudent(request, env, session) {
   if (session.role !== "teacher") {
     return jsonError(403, "Forbidden");
@@ -1077,6 +1135,12 @@ export default {
     }
     if (pathname === "/api/admin/login-audit" && method === "GET") {
       return handleAdminLoginAudit(request, env);
+    }
+    if (pathname === "/api/admin/login-audit/export" && method === "GET") {
+      return handleAdminLoginAuditExport(request, env);
+    }
+    if (pathname === "/api/admin/login-audit/clear" && method === "POST") {
+      return handleAdminLoginAuditClear(request, env);
     }
 
     // Everything else requires a valid session.

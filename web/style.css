@@ -8,6 +8,32 @@
   --accent-dim: #2a4c5c;
 }
 
+:root[data-theme="light"] {
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --border: #d7dce3;
+  --text: #1b1f24;
+  --muted: #5b6470;
+  --accent: #0284c7;
+  --accent-dim: #cfe8f7;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 * { box-sizing: border-box; }
 
 .sr-only {

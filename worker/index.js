@@ -182,8 +182,11 @@ async function logLoginAttempt(env, { request, username, role, accountId, succes
         new Date().toISOString()
       )
       .run();
-  } catch {
-    // Swallowed deliberately — see comment above.
+  } catch (e) {
+    // Swallowed deliberately — see comment above. Logged so a missing
+    // login_audit table (e.g. migration 0003 not yet run) is visible in
+    // `wrangler tail` instead of failing completely silently.
+    console.error("logLoginAttempt failed:", e.message);
   }
 }
 
@@ -536,11 +539,18 @@ async function handleAdminLoginAudit(request, env) {
     return jsonError(403, "Forbidden");
   }
 
-  const result = await env.DB
-    .prepare(
-      "SELECT username, role, account_id, success, ip_address, user_agent, created_at FROM login_audit ORDER BY created_at DESC LIMIT 200"
-    )
-    .all();
+  let result;
+  try {
+    result = await env.DB
+      .prepare(
+        "SELECT username, role, account_id, success, ip_address, user_agent, created_at FROM login_audit ORDER BY created_at DESC LIMIT 200"
+      )
+      .all();
+  } catch (e) {
+    // Most likely cause: migration 0003_login_audit.sql was never run against
+    // this database, so the table doesn't exist yet.
+    return jsonError(500, "Could not read login_audit — has migration 0003_login_audit.sql been run on this database? (" + e.message + ")");
+  }
 
   return new Response(JSON.stringify({ rows: result.results || [] }), {
     status: 200,

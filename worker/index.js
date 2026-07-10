@@ -805,6 +805,39 @@ async function handleHeadteacherResetTeacherPassword(request, env, session) {
   });
 }
 
+async function handleHeadteacherStudents(request, env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  const url = new URL(request.url);
+  const teacherId = Number(url.searchParams.get("teacherId"));
+  if (!Number.isInteger(teacherId)) {
+    return jsonError(400, "teacherId is required");
+  }
+
+  // Only allow browsing students of a teacher that actually belongs to the
+  // calling headteacher — never trust teacherId alone.
+  const teacher = await env.DB
+    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'teacher'")
+    .bind(teacherId, session.userId)
+    .first();
+
+  if (!teacher) {
+    return jsonError(404, "Teacher not found");
+  }
+
+  const result = await env.DB
+    .prepare("SELECT id, username, display_name, active FROM schools WHERE role = 'student' AND teacher_id = ? ORDER BY display_name")
+    .bind(teacherId)
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
 async function handleHeadteacherDeleteTeacher(request, env, session) {
   if (session.role !== "headteacher") {
     return jsonError(403, "Forbidden");
@@ -968,6 +1001,9 @@ export default {
     }
     if (pathname === "/api/headteacher/teachers/delete" && method === "POST") {
       return handleHeadteacherDeleteTeacher(request, env, session);
+    }
+    if (pathname === "/api/headteacher/students" && method === "GET") {
+      return handleHeadteacherStudents(request, env, session);
     }
     if (pathname === "/api/quiz/attempts" && method === "POST") {
       return handleQuizAttempt(request, env, session);

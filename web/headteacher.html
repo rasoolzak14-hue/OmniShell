@@ -224,6 +224,32 @@
     font-size: 0.8rem;
     margin: 0;
   }
+  .breadcrumb {
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    color: var(--muted);
+  }
+  .breadcrumb a {
+    color: var(--accent);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .breadcrumb a:hover {
+    text-decoration: underline;
+  }
+  .teacher-row.clickable {
+    cursor: pointer;
+  }
+  .teacher-row.clickable:hover {
+    background: rgba(79, 195, 247, 0.08);
+  }
+  .inactive-badge {
+    color: #ff6b6b;
+    font-size: 0.75rem;
+    border: 1px solid #ff6b6b;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
 </style>
 </head>
 <body>
@@ -258,6 +284,7 @@
 
   <section class="card">
     <h2>Teachers</h2>
+    <div class="breadcrumb" id="breadcrumb"></div>
     <div id="roster-container">
       <p class="muted">Loading&hellip;</p>
     </div>
@@ -276,23 +303,92 @@
     }
   }
 
-  async function loadTeachers() {
+  // ---------- browsable roster: Teachers, drill into a teacher's Students ----------
+
+  let view = { level: "teachers" };
+  const breadcrumbEl = document.getElementById("breadcrumb");
+
+  function renderBreadcrumb() {
+    breadcrumbEl.innerHTML = "";
+    if (view.level !== "students") return;
+
+    const teachersLink = document.createElement("a");
+    teachersLink.textContent = "Teachers";
+    teachersLink.addEventListener("click", () => {
+      view = { level: "teachers" };
+      loadRoster();
+    });
+    breadcrumbEl.appendChild(teachersLink);
+    breadcrumbEl.appendChild(document.createTextNode(" / " + view.teacherName));
+  }
+
+  async function loadRoster() {
+    renderBreadcrumb();
     const container = document.getElementById("roster-container");
+    container.innerHTML = '<p class="muted">Loading&hellip;</p>';
+
+    const url = view.level === "teachers"
+      ? "/api/headteacher/teachers"
+      : "/api/headteacher/students?teacherId=" + view.teacherId;
 
     let rows;
     try {
-      const res = await fetch("/api/headteacher/teachers");
-      const data = await res.json();
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        container.innerHTML = `<p class="error">${data.error || "Could not load accounts."}</p>`;
+        return;
+      }
       rows = data.rows || [];
     } catch {
-      container.innerHTML = '<p class="error">Could not load teachers.</p>';
+      container.innerHTML = '<p class="error">Could not reach the server.</p>';
       return;
     }
 
-    renderRoster(container, rows);
+    if (view.level === "teachers") renderTeacherRoster(container, rows);
+    else renderStudentRoster(container, rows);
   }
 
-  function renderRoster(container, rows) {
+  function renderStudentRoster(container, rows) {
+    if (rows.length === 0) {
+      container.innerHTML = '<p class="empty">This teacher has no students yet.</p>';
+      return;
+    }
+
+    const list = document.createElement("ul");
+    list.id = "teachers-list";
+
+    rows.forEach((student) => {
+      const item = document.createElement("li");
+      item.className = "teacher-item";
+
+      const row = document.createElement("div");
+      row.className = "teacher-row";
+      row.innerHTML = `
+        <div class="teacher-info">
+          <span class="teacher-name"></span>
+          <span class="teacher-username"></span>
+        </div>
+      `;
+      row.querySelector(".teacher-name").textContent = student.display_name || student.username;
+      row.querySelector(".teacher-username").textContent = student.username;
+
+      if (!student.active) {
+        const badge = document.createElement("span");
+        badge.className = "inactive-badge";
+        badge.textContent = "Inactive";
+        row.appendChild(badge);
+      }
+
+      item.appendChild(row);
+      list.appendChild(item);
+    });
+
+    container.innerHTML = "";
+    container.appendChild(list);
+  }
+
+  function renderTeacherRoster(container, rows) {
     if (rows.length === 0) {
       container.innerHTML = '<p class="empty">No teachers yet. Add one above.</p>';
       return;
@@ -306,7 +402,7 @@
       item.className = "teacher-item";
 
       const row = document.createElement("div");
-      row.className = "teacher-row";
+      row.className = "teacher-row clickable";
       row.innerHTML = `
         <div class="teacher-info">
           <span class="teacher-name"></span>
@@ -344,6 +440,12 @@
         <p class="reset-error"></p>
         <p class="reset-success"></p>
       `;
+
+      // Stop clicks inside any inline panel or action button from also
+      // triggering the row's drill-down-into-students handler.
+      [resetBtn, deleteBtn, resetForm, deleteConfirm].forEach((el) => {
+        el.addEventListener("click", (e) => e.stopPropagation());
+      });
 
       resetBtn.addEventListener("click", () => {
         resetForm.classList.toggle("open");
@@ -413,6 +515,11 @@
         }
       });
 
+      row.addEventListener("click", () => {
+        view = { level: "students", teacherId: teacher.id, teacherName: teacher.display_name || teacher.username };
+        loadRoster();
+      });
+
       item.appendChild(row);
       item.appendChild(resetForm);
       item.appendChild(deleteConfirm);
@@ -449,7 +556,7 @@
       if (res.ok) {
         successEl.textContent = `Added teacher "${data.username}".`;
         form.reset();
-        loadTeachers();
+        if (view.level === "teachers") loadRoster();
       } else {
         errorEl.textContent = data.error || "Could not add teacher.";
       }
@@ -461,7 +568,7 @@
   });
 
   checkRole();
-  loadTeachers();
+  loadRoster();
 </script>
 </body>
 </html>

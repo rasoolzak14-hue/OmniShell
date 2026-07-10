@@ -287,6 +287,50 @@
     border: 1px solid var(--border);
     color: var(--muted);
   }
+  .audit-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+    flex-wrap: wrap;
+  }
+  .audit-row:last-child {
+    border-bottom: none;
+  }
+  .audit-time {
+    color: var(--muted);
+    font-size: 0.76rem;
+    min-width: 150px;
+  }
+  .audit-user {
+    font-weight: 600;
+    min-width: 100px;
+  }
+  .audit-role {
+    color: var(--muted);
+    font-size: 0.76rem;
+  }
+  .audit-ip {
+    color: var(--muted);
+    font-size: 0.76rem;
+    margin-left: auto;
+  }
+  .audit-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+  .audit-badge.ok {
+    color: #6ee7a0;
+    border-color: #6ee7a0;
+  }
+  .audit-badge.fail {
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+  }
 </style>
 </head>
 <body>
@@ -333,6 +377,17 @@
     </div>
     <div class="breadcrumb" id="breadcrumb"></div>
     <div id="roster-container">
+      <p class="muted">Enter your admin token above, then click Refresh.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="roster-header">
+      <h2 style="margin:0;">Login audit</h2>
+      <button type="button" class="refresh-btn" id="audit-refresh-btn">Refresh</button>
+    </div>
+    <p class="muted" style="margin:0 0 12px;font-size:0.8rem;">Last 200 login attempts &mdash; successes and failures, across admin, headteachers, teachers, and students.</p>
+    <div id="audit-container">
       <p class="muted">Enter your admin token above, then click Refresh.</p>
     </div>
   </section>
@@ -724,8 +779,75 @@
 
   document.getElementById("refresh-btn").addEventListener("click", loadRoster);
 
+  // ---------- login audit ----------
+
+  const auditContainer = document.getElementById("audit-container");
+
+  async function loadAuditLog() {
+    auditContainer.innerHTML = '<p class="muted">Loading&hellip;</p>';
+    try {
+      const res = await adminFetch("/api/admin/login-audit");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        auditContainer.innerHTML = `<p class="error">${data.error || "Could not load audit log."}</p>`;
+        return;
+      }
+      renderAuditLog(data.rows || []);
+    } catch {
+      auditContainer.innerHTML = '<p class="error">Could not reach the server.</p>';
+    }
+  }
+
+  function renderAuditLog(rows) {
+    if (rows.length === 0) {
+      auditContainer.innerHTML = '<p class="empty">No login attempts recorded yet.</p>';
+      return;
+    }
+
+    const list = document.createElement("div");
+    rows.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "audit-row";
+
+      const time = document.createElement("span");
+      time.className = "audit-time";
+      time.textContent = new Date(entry.created_at).toLocaleString();
+      row.appendChild(time);
+
+      const badge = document.createElement("span");
+      badge.className = "audit-badge " + (entry.success ? "ok" : "fail");
+      badge.textContent = entry.success ? "Success" : "Failed";
+      row.appendChild(badge);
+
+      const user = document.createElement("span");
+      user.className = "audit-user";
+      user.textContent = entry.username;
+      row.appendChild(user);
+
+      const role = document.createElement("span");
+      role.className = "audit-role";
+      role.textContent = entry.role || "unknown";
+      row.appendChild(role);
+
+      const ip = document.createElement("span");
+      ip.className = "audit-ip";
+      ip.textContent = entry.ip_address || "unknown IP";
+      row.appendChild(ip);
+
+      list.appendChild(row);
+    });
+
+    auditContainer.innerHTML = "";
+    auditContainer.appendChild(list);
+  }
+
+  document.getElementById("audit-refresh-btn").addEventListener("click", loadAuditLog);
+
   renderBreadcrumb();
-  if (savedToken) loadRoster();
+  if (savedToken) {
+    loadRoster();
+    loadAuditLog();
+  }
 </script>
 </body>
 </html>

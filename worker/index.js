@@ -164,6 +164,29 @@ function jsonError(status, message) {
 
 // ---------- route handlers ----------
 
+// Best-effort audit write. Never throws — a logging failure must not block
+// an actual login or admin action.
+async function logLoginAttempt(env, { request, username, role, accountId, success }) {
+  try {
+    await env.DB
+      .prepare(
+        "INSERT INTO login_audit (username, role, account_id, success, ip_address, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      )
+      .bind(
+        username,
+        role || null,
+        accountId || null,
+        success ? 1 : 0,
+        request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || null,
+        request.headers.get("User-Agent") || null,
+        new Date().toISOString()
+      )
+      .run();
+  } catch {
+    // Swallowed deliberately — see comment above.
+  }
+}
+
 async function handleLogin(request, env) {
   let body;
   try {
@@ -189,13 +212,23 @@ async function handleLogin(request, env) {
   const computedHash = await pbkdf2Hash(password, saltBytes);
 
   if (!row || !row.active) {
+    await logLoginAttempt(env, {
+      request,
+      username,
+      role: row ? row.role : null,
+      accountId: row ? row.id : null,
+      success: false
+    });
     return jsonError(401, "Invalid username or password");
   }
 
   const storedHash = fromHex(row.hash);
   if (!constantTimeEqual(computedHash, storedHash)) {
+    await logLoginAttempt(env, { request, username, role: row.role, accountId: row.id, success: false });
     return jsonError(401, "Invalid username or password");
   }
+
+  await logLoginAttempt(env, { request, username: row.username, role: row.role, accountId: row.id, success: true });
 
   const cookieValue = await signSession(
     { userId: row.id, username: row.username, role: row.role || "teacher" },
@@ -228,10 +261,19 @@ function checkAdminToken(request, env) {
   return Boolean(provided) && constantTimeEqual(providedBytes, expectedBytes);
 }
 
+// Same check as checkAdminToken, but also writes an audit row — admin has no
+// session/login step of its own, so every token use (success or failure) is
+// treated as the equivalent of a login attempt for that account.
+async function requireAdmin(request, env) {
+  const ok = checkAdminToken(request, env);
+  await logLoginAttempt(env, { request, username: "admin", role: "admin", accountId: null, success: ok });
+  return ok;
+}
+
 async function handleAdminCreateSchool(request, env) {
   // Admin creates headteacher accounts, which in turn create teachers, which
   // create students.
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -271,7 +313,7 @@ async function handleAdminCreateSchool(request, env) {
 }
 
 async function handleAdminListHeadteachers(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -286,7 +328,7 @@ async function handleAdminListHeadteachers(request, env) {
 }
 
 async function handleAdminListTeachers(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -308,7 +350,7 @@ async function handleAdminListTeachers(request, env) {
 }
 
 async function handleAdminListStudents(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -330,7 +372,7 @@ async function handleAdminListStudents(request, env) {
 }
 
 async function handleAdminResetPassword(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -367,7 +409,7 @@ async function handleAdminResetPassword(request, env) {
 }
 
 async function handleAdminRename(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -398,7 +440,7 @@ async function handleAdminRename(request, env) {
 }
 
 async function handleAdminSetActive(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -428,7 +470,7 @@ async function handleAdminSetActive(request, env) {
 }
 
 async function handleAdminDeleteAccount(request, env) {
-  if (!checkAdminToken(request, env)) {
+  if (!(await requireAdmin(request, env))) {
     return jsonError(403, "Forbidden");
   }
 
@@ -484,6 +526,23 @@ async function handleAdminDeleteAccount(request, env) {
   await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(accountId).run();
 
   return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminLoginAudit(request, env) {
+  if (!(await requireAdmin(request, env))) {
+    return jsonError(403, "Forbidden");
+  }
+
+  const result = await env.DB
+    .prepare(
+      "SELECT username, role, account_id, success, ip_address, user_agent, created_at FROM login_audit ORDER BY created_at DESC LIMIT 200"
+    )
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
     status: 200,
     headers: { "Content-Type": "application/json" }
   });
@@ -863,6 +922,9 @@ export default {
     }
     if (pathname === "/api/admin/accounts/delete" && method === "POST") {
       return handleAdminDeleteAccount(request, env);
+    }
+    if (pathname === "/api/admin/login-audit" && method === "GET") {
+      return handleAdminLoginAudit(request, env);
     }
 
     // Everything else requires a valid session.

@@ -265,12 +265,38 @@ function checkAdminToken(request, env) {
 }
 
 // Same check as checkAdminToken, but also writes an audit row — admin has no
-// session/login step of its own, so every token use (success or failure) is
-// treated as the equivalent of a login attempt for that account.
+// session/login step of its own, so token use is treated as the equivalent
+// of a login attempt for that account.
+//
+// Failures are always logged — a burst of them is the actual signal this
+// exists to catch. Successes are throttled: admin.html re-sends the token on
+// every single click (refresh, reset, delete, ...), so logging every one
+// would bury a real incident under routine browsing noise. Only log a fresh
+// "admin session" marker if the last successful entry was more than
+// ADMIN_LOG_THROTTLE_MS ago.
+const ADMIN_LOG_THROTTLE_MS = 5 * 60 * 1000;
+
 async function requireAdmin(request, env) {
   const ok = checkAdminToken(request, env);
-  await logLoginAttempt(env, { request, username: "admin", role: "admin", accountId: null, success: ok });
-  return ok;
+
+  if (!ok) {
+    await logLoginAttempt(env, { request, username: "admin", role: "admin", accountId: null, success: false });
+    return false;
+  }
+
+  try {
+    const last = await env.DB
+      .prepare("SELECT created_at FROM login_audit WHERE username = 'admin' AND success = 1 ORDER BY created_at DESC LIMIT 1")
+      .first();
+    const lastTime = last ? new Date(last.created_at).getTime() : 0;
+    if (Date.now() - lastTime > ADMIN_LOG_THROTTLE_MS) {
+      await logLoginAttempt(env, { request, username: "admin", role: "admin", accountId: null, success: true });
+    }
+  } catch (e) {
+    console.error("requireAdmin throttle check failed:", e.message);
+  }
+
+  return true;
 }
 
 async function handleAdminCreateSchool(request, env) {

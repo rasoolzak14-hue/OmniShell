@@ -291,6 +291,27 @@
     outline: none;
     border-color: var(--accent);
   }
+  .invite-code-value {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 12px;
+  }
+  .invite-link-row {
+    display: flex;
+    gap: 8px;
+  }
+  .invite-link-row input {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .invite-link-row button {
+    width: auto;
+    white-space: nowrap;
+  }
 </style>
 </head>
 <body>
@@ -304,6 +325,16 @@
       <a href="/api/logout">Log out</a>
     </div>
   </header>
+
+  <section class="card">
+    <h2>Teacher invite code</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:0.85rem;">Share this code or link with a teacher joining your school. They create their own account with it &mdash; you don't need to add them yourself.</p>
+    <div id="invite-code-display">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+    <button type="button" id="invite-code-generate-btn">Generate new code</button>
+    <p class="error" id="invite-code-error"></p>
+  </section>
 
   <section class="card">
     <h2>Computer Science syllabus</h2>
@@ -380,6 +411,76 @@
       window.location.href = "/";
     }
   }
+
+  // ---------- Teacher invite code ----------
+
+  const inviteCodeDisplay = document.getElementById("invite-code-display");
+  const inviteCodeErrorEl = document.getElementById("invite-code-error");
+  const inviteCodeGenerateBtn = document.getElementById("invite-code-generate-btn");
+
+  function renderInviteCode(code) {
+    if (!code) {
+      inviteCodeDisplay.innerHTML = '<p class="muted">No invite code yet &mdash; generate one below.</p>';
+      return;
+    }
+
+    const link = `${window.location.origin}/join-teacher.html?code=${code}`;
+    inviteCodeDisplay.innerHTML = `
+      <span class="invite-code-value"></span>
+      <label for="invite-link-input">Shareable join link</label>
+      <div class="invite-link-row">
+        <input id="invite-link-input" type="text" readonly>
+        <button type="button" id="invite-link-copy-btn">Copy link</button>
+      </div>
+    `;
+    inviteCodeDisplay.querySelector(".invite-code-value").textContent = code;
+    const linkInput = document.getElementById("invite-link-input");
+    linkInput.value = link;
+
+    document.getElementById("invite-link-copy-btn").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(link);
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch {
+        linkInput.select();
+      }
+    });
+  }
+
+  async function loadInviteCode() {
+    try {
+      const res = await fetch("/api/headteacher/invite-code");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        inviteCodeDisplay.innerHTML = `<p class="error">${data.error || "Could not load invite code."}</p>`;
+        return;
+      }
+      renderInviteCode(data.code);
+    } catch {
+      inviteCodeDisplay.innerHTML = '<p class="error">Could not reach the server.</p>';
+    }
+  }
+
+  inviteCodeGenerateBtn.addEventListener("click", async () => {
+    inviteCodeErrorEl.textContent = "";
+    inviteCodeGenerateBtn.disabled = true;
+    try {
+      const res = await fetch("/api/headteacher/invite-code/regenerate", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        renderInviteCode(data.code);
+      } else {
+        inviteCodeErrorEl.textContent = data.error || "Could not generate a code.";
+      }
+    } catch {
+      inviteCodeErrorEl.textContent = "Could not reach the server.";
+    } finally {
+      inviteCodeGenerateBtn.disabled = false;
+    }
+  });
 
   // ---------- Computer Science syllabus ----------
   // Headteacher only chooses the exam board here — the actual topic content
@@ -698,6 +799,7 @@
   checkRole();
   loadRoster();
   loadSyllabusChoice();
+  loadInviteCode();
 </script>
 </body>
 </html>

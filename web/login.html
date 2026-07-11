@@ -143,6 +143,17 @@
     margin: -8px 0 16px;
     min-height: 1em;
   }
+  .login-link {
+    display: block;
+    text-align: center;
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-decoration: none;
+  }
+  .login-link:hover {
+    color: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -165,6 +176,8 @@
   <p class="error" id="error"></p>
 
   <button type="submit" id="submit-btn">Sign in</button>
+  <a class="login-link" href="/join-teacher.html">New teacher? Join with an invite code</a>
+  <a class="login-link" href="/join-student.html">New student? Join with a class code</a>
 </form>
 
 <script>

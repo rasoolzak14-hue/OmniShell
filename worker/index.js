@@ -50,6 +50,19 @@ function constantTimeEqual(a, b) {
 
 // ---------- crypto helpers ----------
 
+// Excludes visually-confusable characters (0/O, 1/I/L) since these codes get
+// read off a screen and typed in by hand.
+const INVITE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function generateInviteCode(length = 8) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let code = "";
+  for (let i = 0; i < length; i++) {
+    code += INVITE_CODE_ALPHABET[bytes[i] % INVITE_CODE_ALPHABET.length];
+  }
+  return code;
+}
+
 async function pbkdf2Hash(password, saltBytes, iterations = PBKDF2_ITERATIONS) {
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -775,9 +788,10 @@ async function handleTeacherProgress(env, session) {
 
   const result = await env.DB
     .prepare(
-      `SELECT s.id AS student_id, s.username, s.display_name,
+      `SELECT s.id AS student_id, s.username, s.display_name, c.name AS classroom_name,
               qa.provider, qa.score, qa.total, qa.completed_at
        FROM schools s
+       LEFT JOIN classrooms c ON c.id = s.classroom_id
        LEFT JOIN quiz_attempts qa ON qa.student_id = s.id
        WHERE s.teacher_id = ?
        ORDER BY qa.completed_at DESC
@@ -1058,6 +1072,265 @@ async function handleHeadteacherDeleteTeacher(request, env, session) {
   });
 }
 
+// ---------- self-service joining: invite codes & classrooms ----------
+
+async function handleHeadteacherGetInviteCode(env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  const row = await env.DB.prepare("SELECT invite_code FROM schools WHERE id = ?").bind(session.userId).first();
+
+  return new Response(JSON.stringify({ code: (row && row.invite_code) || null }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleHeadteacherRegenerateInviteCode(env, session) {
+  if (session.role !== "headteacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  // Extremely unlikely to collide, but retry once if it does rather than
+  // fail the request outright.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const code = generateInviteCode();
+    try {
+      await env.DB.prepare("UPDATE schools SET invite_code = ? WHERE id = ?").bind(code, session.userId).run();
+      return new Response(JSON.stringify({ code }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch {
+      // Unique index collision — loop and try a fresh code.
+    }
+  }
+
+  return jsonError(500, "Could not generate a unique invite code, try again");
+}
+
+// Public — a prospective teacher isn't authenticated yet. The invite code
+// itself is what proves they're allowed to join this school.
+async function handleJoinTeacher(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const code = ((body && body.code) || "").trim().toUpperCase();
+  const username = ((body && body.username) || "").trim();
+  const password = (body && body.password) || "";
+  const displayName = ((body && body.displayName) || "").trim();
+  const email = ((body && body.email) || "").trim();
+  if (!code || !username || !password) {
+    return jsonError(400, "code, username, and password are required");
+  }
+
+  const headteacher = await env.DB
+    .prepare("SELECT id, active FROM schools WHERE invite_code = ? AND role = 'headteacher'")
+    .bind(code)
+    .first();
+
+  if (!headteacher || !headteacher.active) {
+    return jsonError(404, "Invalid invite code");
+  }
+
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const hashBytes = await pbkdf2Hash(password, saltBytes);
+  let newId;
+
+  try {
+    const result = await env.DB
+      .prepare(
+        "INSERT INTO schools (username, salt, hash, display_name, email, active, role, teacher_id, created_at) VALUES (?, ?, ?, ?, ?, 1, 'teacher', ?, ?)"
+      )
+      .bind(
+        username,
+        toHex(saltBytes),
+        toHex(hashBytes),
+        displayName || username,
+        email || null,
+        headteacher.id,
+        new Date().toISOString()
+      )
+      .run();
+    newId = result.meta.last_row_id;
+  } catch {
+    return jsonError(409, "Username already exists or database error");
+  }
+
+  await logLoginAttempt(env, { request, username, role: "teacher", accountId: newId, success: true });
+
+  const cookieValue = await signSession({ userId: newId, username, role: "teacher" }, env);
+  return new Response(JSON.stringify({ ok: true, username }), {
+    status: 201,
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": sessionCookieHeader(cookieValue)
+    }
+  });
+}
+
+async function handleTeacherClassrooms(env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  const result = await env.DB
+    .prepare("SELECT id, name, join_code, created_at FROM classrooms WHERE teacher_id = ? ORDER BY name")
+    .bind(session.userId)
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleTeacherCreateClassroom(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const name = ((body && body.name) || "").trim();
+  if (!name) {
+    return jsonError(400, "name is required");
+  }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const joinCode = generateInviteCode();
+    try {
+      const result = await env.DB
+        .prepare("INSERT INTO classrooms (teacher_id, name, join_code, created_at) VALUES (?, ?, ?, ?)")
+        .bind(session.userId, name, joinCode, new Date().toISOString())
+        .run();
+      return new Response(JSON.stringify({ id: result.meta.last_row_id, name, join_code: joinCode }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch {
+      // Unique join_code collision — loop and try a fresh code.
+    }
+  }
+
+  return jsonError(500, "Could not create classroom, try again");
+}
+
+async function handleTeacherRegenerateClassroomCode(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const classroomId = Number(body && body.classroomId);
+  if (!Number.isInteger(classroomId)) {
+    return jsonError(400, "classroomId is required");
+  }
+
+  // Only allow regenerating the code for a classroom that actually belongs
+  // to the calling teacher — never trust classroomId alone.
+  const classroom = await env.DB
+    .prepare("SELECT id FROM classrooms WHERE id = ? AND teacher_id = ?")
+    .bind(classroomId, session.userId)
+    .first();
+
+  if (!classroom) {
+    return jsonError(404, "Classroom not found");
+  }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const joinCode = generateInviteCode();
+    try {
+      await env.DB.prepare("UPDATE classrooms SET join_code = ? WHERE id = ?").bind(joinCode, classroomId).run();
+      return new Response(JSON.stringify({ join_code: joinCode }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch {
+      // Unique join_code collision — loop and try a fresh code.
+    }
+  }
+
+  return jsonError(500, "Could not generate a unique join code, try again");
+}
+
+// Public — a prospective student isn't authenticated yet. The classroom
+// join code is what proves they're allowed to join that class.
+async function handleJoinStudent(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const code = ((body && body.code) || "").trim().toUpperCase();
+  const username = ((body && body.username) || "").trim();
+  const password = (body && body.password) || "";
+  const displayName = ((body && body.displayName) || "").trim();
+  const email = ((body && body.email) || "").trim();
+  if (!code || !username || !password) {
+    return jsonError(400, "code, username, and password are required");
+  }
+
+  const classroom = await env.DB.prepare("SELECT id, teacher_id FROM classrooms WHERE join_code = ?").bind(code).first();
+  if (!classroom) {
+    return jsonError(404, "Invalid class code");
+  }
+
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const hashBytes = await pbkdf2Hash(password, saltBytes);
+  let newId;
+
+  try {
+    const result = await env.DB
+      .prepare(
+        "INSERT INTO schools (username, salt, hash, display_name, email, active, role, teacher_id, classroom_id, created_at) VALUES (?, ?, ?, ?, ?, 1, 'student', ?, ?, ?)"
+      )
+      .bind(
+        username,
+        toHex(saltBytes),
+        toHex(hashBytes),
+        displayName || username,
+        email || null,
+        classroom.teacher_id,
+        classroom.id,
+        new Date().toISOString()
+      )
+      .run();
+    newId = result.meta.last_row_id;
+  } catch {
+    return jsonError(409, "Username already exists or database error");
+  }
+
+  await logLoginAttempt(env, { request, username, role: "student", accountId: newId, success: true });
+
+  const cookieValue = await signSession({ userId: newId, username, role: "student" }, env);
+  return new Response(JSON.stringify({ ok: true, username }), {
+    status: 201,
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": sessionCookieHeader(cookieValue)
+    }
+  });
+}
+
 async function handleQuizAttempt(request, env, session) {
   let body;
   try {
@@ -1103,8 +1376,20 @@ export default {
     if (pathname === "/admin.html" && method === "GET") {
       return env.ASSETS.fetch(request);
     }
+    if (pathname === "/join-teacher.html" && method === "GET") {
+      return env.ASSETS.fetch(request);
+    }
+    if (pathname === "/join-student.html" && method === "GET") {
+      return env.ASSETS.fetch(request);
+    }
     if (pathname === "/api/login" && method === "POST") {
       return handleLogin(request, env);
+    }
+    if (pathname === "/api/join/teacher" && method === "POST") {
+      return handleJoinTeacher(request, env);
+    }
+    if (pathname === "/api/join/student" && method === "POST") {
+      return handleJoinStudent(request, env);
     }
     if (pathname === "/api/logout" && (method === "GET" || method === "POST")) {
       return handleLogout();
@@ -1176,6 +1461,15 @@ export default {
     if (pathname === "/api/teacher/progress" && method === "GET") {
       return handleTeacherProgress(env, session);
     }
+    if (pathname === "/api/teacher/classrooms" && method === "GET") {
+      return handleTeacherClassrooms(env, session);
+    }
+    if (pathname === "/api/teacher/classrooms" && method === "POST") {
+      return handleTeacherCreateClassroom(request, env, session);
+    }
+    if (pathname === "/api/teacher/classrooms/regenerate-code" && method === "POST") {
+      return handleTeacherRegenerateClassroomCode(request, env, session);
+    }
     if (pathname === "/api/headteacher/teachers" && method === "POST") {
       return handleHeadteacherCreateTeacher(request, env, session);
     }
@@ -1196,6 +1490,12 @@ export default {
     }
     if (pathname === "/api/headteacher/syllabus" && method === "POST") {
       return handleHeadteacherSetSyllabus(request, env, session);
+    }
+    if (pathname === "/api/headteacher/invite-code" && method === "GET") {
+      return handleHeadteacherGetInviteCode(env, session);
+    }
+    if (pathname === "/api/headteacher/invite-code/regenerate" && method === "POST") {
+      return handleHeadteacherRegenerateInviteCode(env, session);
     }
     if (pathname === "/api/quiz/attempts" && method === "POST") {
       return handleQuizAttempt(request, env, session);

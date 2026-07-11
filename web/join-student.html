@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
+<title>OmniShell &mdash; Join a class</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #d7dce3;
+    --text: #1b1f24;
+    --muted: #5b6470;
+    --accent: #0284c7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .join-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    margin: 24px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+    text-align: center;
+  }
+  .subtitle {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .field-with-toggle {
+    position: relative;
+  }
+  .field-with-toggle input {
+    padding-right: 56px;
+  }
+  .toggle-visibility {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px;
+    width: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .toggle-visibility:hover {
+    color: var(--text);
+  }
+  .toggle-visibility svg {
+    width: 18px;
+    height: 18px;
+  }
+  button {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .login-link {
+    display: block;
+    text-align: center;
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-decoration: none;
+  }
+  .login-link:hover {
+    color: var(--accent);
+  }
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
+
+<form class="join-card" id="join-form">
+  <h1>Join a class</h1>
+  <p class="subtitle">Enter the class code your teacher shared with you.</p>
+
+  <label for="code">Class code</label>
+  <input id="code" name="code" type="text" autocomplete="off" required style="text-transform:uppercase;letter-spacing:2px;">
+
+  <label for="username">Choose a username</label>
+  <input id="username" name="username" type="text" autocomplete="username" required>
+
+  <label for="display-name">Your name</label>
+  <input id="display-name" name="displayName" type="text" autocomplete="name">
+
+  <label for="email">School email (optional)</label>
+  <input id="email" name="email" type="email" autocomplete="email">
+
+  <label for="password">Choose a password</label>
+  <div class="field-with-toggle">
+    <input id="password" name="password" type="password" autocomplete="new-password" required>
+    <button type="button" class="toggle-visibility" data-target="password" aria-label="Show password"></button>
+  </div>
+
+  <p class="error" id="error"></p>
+
+  <button type="submit" id="submit-btn">Create my account</button>
+  <a class="login-link" href="/login.html">Already have an account? Sign in</a>
+</form>
+
+<script>
+  const themeToggleBtn = document.getElementById("theme-toggle");
+
+  function updateThemeToggleLabel() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+    themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  }
+
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("omnishell_theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("omnishell_theme", "light");
+    }
+    updateThemeToggleLabel();
+  });
+
+  updateThemeToggleLabel();
+
+  const form = document.getElementById("join-form");
+  const errorEl = document.getElementById("error");
+  const submitBtn = document.getElementById("submit-btn");
+
+  const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"></path></svg>';
+
+  document.querySelectorAll(".toggle-visibility").forEach((btn) => {
+    btn.innerHTML = EYE_ICON;
+    btn.addEventListener("click", () => {
+      const target = document.getElementById(btn.dataset.target);
+      const showing = target.type === "text";
+      target.type = showing ? "password" : "text";
+      btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
+      btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+    });
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const codeParam = params.get("code");
+  if (codeParam) {
+    document.getElementById("code").value = codeParam.toUpperCase();
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.textContent = "";
+    submitBtn.disabled = true;
+
+    try {
+      const res = await fetch("/api/join/student", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: document.getElementById("code").value,
+          username: document.getElementById("username").value,
+          password: document.getElementById("password").value,
+          displayName: document.getElementById("display-name").value,
+          email: document.getElementById("email").value
+        })
+      });
+
+      if (res.ok) {
+        window.location.href = "/";
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      errorEl.textContent = data.error || "Could not create your account.";
+    } catch {
+      errorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

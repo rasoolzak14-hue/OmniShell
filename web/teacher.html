@@ -354,6 +354,50 @@
     font-family: "SF Mono", Consolas, monospace;
     font-size: 0.82rem;
   }
+  .classroom-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .classroom-name {
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+  .invite-code-value {
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .invite-link-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .invite-link-row input {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .invite-link-row button {
+    width: auto;
+    white-space: nowrap;
+  }
+  .classroom-regen-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+  .classroom-regen-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -371,6 +415,21 @@
   <section class="card">
     <h2>Syllabus &mdash; teaching view</h2>
     <div id="syllabus-content">
+      <p class="muted">Loading&hellip;</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>My classrooms</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:0.85rem;">Create a classroom for each class you teach, then share its join link so students can add themselves &mdash; no need to add them one by one.</p>
+    <form id="classroom-form">
+      <label for="classroom-name">Classroom name</label>
+      <input id="classroom-name" type="text" autocomplete="off" required placeholder="e.g. Year 10 Computing">
+      <p class="error" id="classroom-form-error"></p>
+      <p class="success" id="classroom-form-success"></p>
+      <button type="submit" id="classroom-submit-btn">Create classroom</button>
+    </form>
+    <div id="classrooms-list" style="margin-top:16px;">
       <p class="muted">Loading&hellip;</p>
     </div>
   </section>
@@ -510,6 +569,124 @@
     });
   }
 
+  // ---------- My classrooms ----------
+
+  const classroomsListEl = document.getElementById("classrooms-list");
+
+  function buildClassroomItem(classroom) {
+    const item = document.createElement("div");
+    item.className = "classroom-item";
+
+    const name = document.createElement("p");
+    name.className = "classroom-name";
+    name.textContent = classroom.name;
+    item.appendChild(name);
+
+    const codeEl = document.createElement("span");
+    codeEl.className = "invite-code-value";
+    codeEl.textContent = classroom.join_code;
+    item.appendChild(codeEl);
+
+    const link = `${window.location.origin}/join-student.html?code=${classroom.join_code}`;
+    const linkRow = document.createElement("div");
+    linkRow.className = "invite-link-row";
+    linkRow.innerHTML = `
+      <input type="text" readonly>
+      <button type="button">Copy link</button>
+    `;
+    linkRow.querySelector("input").value = link;
+    linkRow.querySelector("button").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(link);
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch {
+        linkRow.querySelector("input").select();
+      }
+    });
+    item.appendChild(linkRow);
+
+    const regenBtn = document.createElement("button");
+    regenBtn.type = "button";
+    regenBtn.className = "classroom-regen-btn";
+    regenBtn.textContent = "Regenerate code";
+    regenBtn.addEventListener("click", async () => {
+      regenBtn.disabled = true;
+      try {
+        const res = await fetch("/api/teacher/classrooms/regenerate-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classroomId: classroom.id })
+        });
+        if (res.ok) {
+          loadClassrooms();
+        }
+      } finally {
+        regenBtn.disabled = false;
+      }
+    });
+    item.appendChild(regenBtn);
+
+    return item;
+  }
+
+  async function loadClassrooms() {
+    classroomsListEl.innerHTML = '<p class="muted">Loading&hellip;</p>';
+    try {
+      const res = await fetch("/api/teacher/classrooms");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        classroomsListEl.innerHTML = `<p class="error">${data.error || "Could not load classrooms."}</p>`;
+        return;
+      }
+      const rows = data.rows || [];
+      if (rows.length === 0) {
+        classroomsListEl.innerHTML = '<p class="empty">No classrooms yet. Create one above.</p>';
+        return;
+      }
+      classroomsListEl.innerHTML = "";
+      rows.forEach((classroom) => classroomsListEl.appendChild(buildClassroomItem(classroom)));
+    } catch {
+      classroomsListEl.innerHTML = '<p class="error">Could not reach the server.</p>';
+    }
+  }
+
+  const classroomForm = document.getElementById("classroom-form");
+  const classroomFormErrorEl = document.getElementById("classroom-form-error");
+  const classroomFormSuccessEl = document.getElementById("classroom-form-success");
+  const classroomSubmitBtn = document.getElementById("classroom-submit-btn");
+
+  classroomForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    classroomFormErrorEl.textContent = "";
+    classroomFormSuccessEl.textContent = "";
+    classroomSubmitBtn.disabled = true;
+
+    const name = document.getElementById("classroom-name").value;
+
+    try {
+      const res = await fetch("/api/teacher/classrooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        classroomFormSuccessEl.textContent = `Created "${data.name}".`;
+        classroomForm.reset();
+        loadClassrooms();
+      } else {
+        classroomFormErrorEl.textContent = data.error || "Could not create classroom.";
+      }
+    } catch {
+      classroomFormErrorEl.textContent = "Could not reach the server.";
+    } finally {
+      classroomSubmitBtn.disabled = false;
+    }
+  });
+
   async function checkRole() {
     try {
       const res = await fetch("/api/me");
@@ -545,6 +722,7 @@
           id: row.student_id,
           name: row.display_name || row.username,
           username: row.username,
+          classroomName: row.classroom_name,
           attempts: []
         });
       }
@@ -575,7 +753,9 @@
         <span class="student-caret">▸</span>
       `;
       row.querySelector(".student-name").textContent = student.name;
-      row.querySelector(".student-username").textContent = student.username;
+      row.querySelector(".student-username").textContent = student.classroomName
+        ? `${student.username} · ${student.classroomName}`
+        : `${student.username} · Unassigned`;
 
       const resetBtn = document.createElement("button");
       resetBtn.type = "button";
@@ -760,6 +940,7 @@
   checkRole();
   loadProgress();
   loadSyllabus();
+  loadClassrooms();
 </script>
 </body>
 </html>

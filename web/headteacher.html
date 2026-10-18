@@ -327,6 +327,22 @@
   .invite-result-reason {
     color: var(--muted);
   }
+  .manual-add {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .manual-add summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .manual-add summary:hover {
+    color: var(--text);
+  }
+  .manual-add[open] summary {
+    margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
@@ -342,7 +358,7 @@
   </header>
 
   <section class="card">
-    <h2>Invite teachers</h2>
+    <h2>Add teachers</h2>
     <p class="muted" style="margin:0 0 12px;font-size:0.85rem;">Enter a teacher's school email and we'll send them a one-click link to create their own account &mdash; no code to share, nothing for you to set up on their behalf. Enter several, one per line, to invite a whole department at once.</p>
     <label for="invite-emails">Teacher email(s)</label>
     <textarea id="invite-emails" rows="4" placeholder="teacher1@school.ac.uk&#10;teacher2@school.ac.uk"></textarea>
@@ -350,6 +366,25 @@
     <p class="success" id="invite-success"></p>
     <button type="button" id="invite-send-btn">Send invites</button>
     <div id="invite-results"></div>
+
+    <details class="manual-add">
+      <summary>No email address? Create a login with a username and password instead</summary>
+      <form id="teacher-form">
+        <label for="username">Username</label>
+        <input id="username" type="text" autocomplete="off" required>
+
+        <label for="password">Password</label>
+        <input id="password" type="text" autocomplete="off" required>
+
+        <label for="display-name">Teacher name</label>
+        <input id="display-name" type="text" autocomplete="off">
+
+        <p class="error" id="form-error"></p>
+        <p class="success" id="form-success"></p>
+
+        <button type="submit" id="submit-btn">Add teacher</button>
+      </form>
+    </details>
   </section>
 
   <section class="card">
@@ -364,25 +399,6 @@
     <p class="error" id="syllabus-error"></p>
     <p class="success" id="syllabus-success"></p>
     <button type="button" id="syllabus-save-btn">Save</button>
-  </section>
-
-  <section class="card">
-    <h2>Add a teacher</h2>
-    <form id="teacher-form">
-      <label for="username">Username</label>
-      <input id="username" type="text" autocomplete="off" required>
-
-      <label for="password">Password</label>
-      <input id="password" type="text" autocomplete="off" required>
-
-      <label for="display-name">Teacher name</label>
-      <input id="display-name" type="text" autocomplete="off">
-
-      <p class="error" id="form-error"></p>
-      <p class="success" id="form-success"></p>
-
-      <button type="submit" id="submit-btn">Add teacher</button>
-    </form>
   </section>
 
   <section class="card">

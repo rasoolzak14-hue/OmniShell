@@ -97,7 +97,8 @@
     color: var(--muted);
     margin-bottom: 6px;
   }
-  input {
+  input,
+  textarea {
     width: 100%;
     padding: 10px 12px;
     margin-bottom: 16px;
@@ -106,8 +107,11 @@
     background: var(--bg);
     color: var(--text);
     font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
   }
-  input:focus {
+  input:focus,
+  textarea:focus {
     outline: none;
     border-color: var(--accent);
   }
@@ -291,26 +295,37 @@
     outline: none;
     border-color: var(--accent);
   }
-  .invite-code-value {
-    font-family: "SF Mono", Consolas, monospace;
-    font-size: 1.4rem;
-    font-weight: 700;
-    letter-spacing: 3px;
-    color: var(--accent);
-    display: block;
-    margin-bottom: 12px;
+  #invite-results {
+    margin-top: 12px;
   }
-  .invite-link-row {
+  .invite-result-row {
     display: flex;
+    align-items: baseline;
     gap: 8px;
+    padding: 8px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
   }
-  .invite-link-row input {
-    flex: 1;
-    margin-bottom: 0;
+  .invite-result-row:last-child {
+    border-bottom: none;
   }
-  .invite-link-row button {
-    width: auto;
-    white-space: nowrap;
+  .invite-result-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+  .invite-result-badge.sent {
+    color: #6ee7a0;
+    border-color: #6ee7a0;
+  }
+  .invite-result-badge.skipped {
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+  }
+  .invite-result-reason {
+    color: var(--muted);
   }
 </style>
 </head>
@@ -327,13 +342,14 @@
   </header>
 
   <section class="card">
-    <h2>Teacher invite code</h2>
-    <p class="muted" style="margin:0 0 12px;font-size:0.85rem;">Share this code or link with a teacher joining your school. They create their own account with it &mdash; you don't need to add them yourself.</p>
-    <div id="invite-code-display">
-      <p class="muted">Loading&hellip;</p>
-    </div>
-    <button type="button" id="invite-code-generate-btn">Generate new code</button>
-    <p class="error" id="invite-code-error"></p>
+    <h2>Invite teachers</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:0.85rem;">Enter a teacher's school email and we'll send them a one-click link to create their own account &mdash; no code to share, nothing for you to set up on their behalf. Enter several, one per line, to invite a whole department at once.</p>
+    <label for="invite-emails">Teacher email(s)</label>
+    <textarea id="invite-emails" rows="4" placeholder="teacher1@school.ac.uk&#10;teacher2@school.ac.uk"></textarea>
+    <p class="error" id="invite-error"></p>
+    <p class="success" id="invite-success"></p>
+    <button type="button" id="invite-send-btn">Send invites</button>
+    <div id="invite-results"></div>
   </section>
 
   <section class="card">
@@ -412,73 +428,64 @@
     }
   }
 
-  // ---------- Teacher invite code ----------
+  // ---------- Invite teachers ----------
 
-  const inviteCodeDisplay = document.getElementById("invite-code-display");
-  const inviteCodeErrorEl = document.getElementById("invite-code-error");
-  const inviteCodeGenerateBtn = document.getElementById("invite-code-generate-btn");
+  const inviteEmailsEl = document.getElementById("invite-emails");
+  const inviteErrorEl = document.getElementById("invite-error");
+  const inviteSuccessEl = document.getElementById("invite-success");
+  const inviteSendBtn = document.getElementById("invite-send-btn");
+  const inviteResultsEl = document.getElementById("invite-results");
 
-  function renderInviteCode(code) {
-    if (!code) {
-      inviteCodeDisplay.innerHTML = '<p class="muted">No invite code yet &mdash; generate one below.</p>';
-      return;
-    }
-
-    const link = `${window.location.origin}/join-teacher.html?code=${code}`;
-    inviteCodeDisplay.innerHTML = `
-      <span class="invite-code-value"></span>
-      <label for="invite-link-input">Shareable join link</label>
-      <div class="invite-link-row">
-        <input id="invite-link-input" type="text" readonly>
-        <button type="button" id="invite-link-copy-btn">Copy link</button>
-      </div>
-    `;
-    inviteCodeDisplay.querySelector(".invite-code-value").textContent = code;
-    const linkInput = document.getElementById("invite-link-input");
-    linkInput.value = link;
-
-    document.getElementById("invite-link-copy-btn").addEventListener("click", async (e) => {
-      const btn = e.currentTarget;
-      try {
-        await navigator.clipboard.writeText(link);
-        const original = btn.textContent;
-        btn.textContent = "Copied!";
-        setTimeout(() => { btn.textContent = original; }, 1500);
-      } catch {
-        linkInput.select();
-      }
+  function renderInviteResults(sent, skipped) {
+    inviteResultsEl.innerHTML = "";
+    sent.forEach((email) => {
+      const row = document.createElement("div");
+      row.className = "invite-result-row";
+      row.innerHTML = `<span class="invite-result-badge sent">Sent</span><span></span>`;
+      row.querySelector("span:last-child").textContent = email;
+      inviteResultsEl.appendChild(row);
+    });
+    skipped.forEach(({ email, reason }) => {
+      const row = document.createElement("div");
+      row.className = "invite-result-row";
+      row.innerHTML = `<span class="invite-result-badge skipped">Skipped</span><span></span><span class="invite-result-reason"></span>`;
+      const spans = row.querySelectorAll("span");
+      spans[1].textContent = email;
+      spans[2].textContent = reason;
+      inviteResultsEl.appendChild(row);
     });
   }
 
-  async function loadInviteCode() {
-    try {
-      const res = await fetch("/api/headteacher/invite-code");
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        inviteCodeDisplay.innerHTML = `<p class="error">${data.error || "Could not load invite code."}</p>`;
-        return;
-      }
-      renderInviteCode(data.code);
-    } catch {
-      inviteCodeDisplay.innerHTML = '<p class="error">Could not reach the server.</p>';
+  inviteSendBtn.addEventListener("click", async () => {
+    inviteErrorEl.textContent = "";
+    inviteSuccessEl.textContent = "";
+    inviteResultsEl.innerHTML = "";
+    const emails = inviteEmailsEl.value.trim();
+    if (!emails) {
+      inviteErrorEl.textContent = "Enter at least one email address.";
+      return;
     }
-  }
-
-  inviteCodeGenerateBtn.addEventListener("click", async () => {
-    inviteCodeErrorEl.textContent = "";
-    inviteCodeGenerateBtn.disabled = true;
+    inviteSendBtn.disabled = true;
     try {
-      const res = await fetch("/api/headteacher/invite-code/regenerate", { method: "POST" });
+      const res = await fetch("/api/headteacher/invite-teachers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails })
+      });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        renderInviteCode(data.code);
+        const sent = data.sent || [];
+        const skipped = data.skipped || [];
+        inviteSuccessEl.textContent = sent.length > 0 ? `Sent ${sent.length} invite${sent.length === 1 ? "" : "s"}.` : "";
+        renderInviteResults(sent, skipped);
+        if (sent.length > 0) inviteEmailsEl.value = "";
       } else {
-        inviteCodeErrorEl.textContent = data.error || "Could not generate a code.";
+        inviteErrorEl.textContent = data.error || "Could not send invites.";
       }
     } catch {
-      inviteCodeErrorEl.textContent = "Could not reach the server.";
+      inviteErrorEl.textContent = "Could not reach the server.";
     } finally {
-      inviteCodeGenerateBtn.disabled = false;
+      inviteSendBtn.disabled = false;
     }
   });
 
@@ -799,7 +806,6 @@
   checkRole();
   loadRoster();
   loadSyllabusChoice();
-  loadInviteCode();
 </script>
 </body>
 </html>

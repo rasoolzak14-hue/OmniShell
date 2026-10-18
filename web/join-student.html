@@ -77,33 +77,11 @@
     outline: none;
     border-color: var(--accent);
   }
-  .field-with-toggle {
-    position: relative;
-  }
-  .field-with-toggle input {
-    padding-right: 56px;
-  }
-  .toggle-visibility {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 6px;
-    width: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .toggle-visibility:hover {
-    color: var(--text);
-  }
-  .toggle-visibility svg {
-    width: 18px;
-    height: 18px;
+  .code-input {
+    text-align: center;
+    font-size: 1.4rem;
+    letter-spacing: 6px;
+    font-family: "SF Mono", Consolas, monospace;
   }
   button {
     width: 100%;
@@ -126,15 +104,28 @@
     margin: -8px 0 16px;
     min-height: 1em;
   }
-  .login-link {
+  .success {
+    color: #6ee7a0;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .login-link,
+  .text-link-btn {
     display: block;
+    width: 100%;
     text-align: center;
-    margin-top: 16px;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    padding: 0;
     color: var(--muted);
     font-size: 0.85rem;
     text-decoration: none;
+    cursor: pointer;
   }
-  .login-link:hover {
+  .login-link:hover,
+  .text-link-btn:hover {
     color: var(--accent);
   }
   .theme-toggle {
@@ -155,38 +146,46 @@
     color: var(--text);
     border-color: var(--accent);
   }
+  [hidden] {
+    display: none !important;
+  }
 </style>
 </head>
 <body>
 
 <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
 
-<form class="join-card" id="join-form">
+<form class="join-card" id="request-form">
   <h1>Join a class</h1>
-  <p class="subtitle">Enter the class code your teacher shared with you.</p>
+  <p class="subtitle">Enter the class code your teacher shared with you, and your school email.</p>
 
   <label for="code">Class code</label>
   <input id="code" name="code" type="text" autocomplete="off" required style="text-transform:uppercase;letter-spacing:2px;">
 
-  <label for="username">Choose a username</label>
-  <input id="username" name="username" type="text" autocomplete="username" required>
-
   <label for="display-name">Your name</label>
-  <input id="display-name" name="displayName" type="text" autocomplete="name">
+  <input id="display-name" name="displayName" type="text" autocomplete="name" required>
 
-  <label for="email">School email (optional)</label>
-  <input id="email" name="email" type="email" autocomplete="email">
+  <label for="email">School email</label>
+  <input id="email" name="email" type="email" autocomplete="email" required>
 
-  <label for="password">Choose a password</label>
-  <div class="field-with-toggle">
-    <input id="password" name="password" type="password" autocomplete="new-password" required>
-    <button type="button" class="toggle-visibility" data-target="password" aria-label="Show password"></button>
-  </div>
+  <p class="error" id="request-error"></p>
 
-  <p class="error" id="error"></p>
-
-  <button type="submit" id="submit-btn">Create my account</button>
+  <button type="submit" id="request-submit-btn">Send verification code</button>
   <a class="login-link" href="/login.html">Already have an account? Sign in</a>
+</form>
+
+<form class="join-card" id="verify-form" hidden>
+  <h1>Check your email</h1>
+  <p class="subtitle" id="verify-subtitle">Enter the 6-digit code we sent you.</p>
+
+  <label for="verify-code">Verification code</label>
+  <input id="verify-code" name="verifyCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="code-input" required>
+
+  <p class="error" id="verify-error"></p>
+  <p class="success" id="verify-success"></p>
+
+  <button type="submit" id="verify-submit-btn">Verify &amp; create account</button>
+  <button type="button" class="text-link-btn" id="back-btn">Use a different email</button>
 </form>
 
 <script>
@@ -212,23 +211,15 @@
 
   updateThemeToggleLabel();
 
-  const form = document.getElementById("join-form");
-  const errorEl = document.getElementById("error");
-  const submitBtn = document.getElementById("submit-btn");
+  const requestForm = document.getElementById("request-form");
+  const requestErrorEl = document.getElementById("request-error");
+  const requestSubmitBtn = document.getElementById("request-submit-btn");
 
-  const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-  const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"></path></svg>';
-
-  document.querySelectorAll(".toggle-visibility").forEach((btn) => {
-    btn.innerHTML = EYE_ICON;
-    btn.addEventListener("click", () => {
-      const target = document.getElementById(btn.dataset.target);
-      const showing = target.type === "text";
-      target.type = showing ? "password" : "text";
-      btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
-      btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
-    });
-  });
+  const verifyForm = document.getElementById("verify-form");
+  const verifySubtitleEl = document.getElementById("verify-subtitle");
+  const verifyErrorEl = document.getElementById("verify-error");
+  const verifySuccessEl = document.getElementById("verify-success");
+  const verifySubmitBtn = document.getElementById("verify-submit-btn");
 
   const params = new URLSearchParams(window.location.search);
   const codeParam = params.get("code");
@@ -236,22 +227,54 @@
     document.getElementById("code").value = codeParam.toUpperCase();
   }
 
-  form.addEventListener("submit", async (e) => {
+  let pendingEmail = "";
+
+  requestForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    errorEl.textContent = "";
-    submitBtn.disabled = true;
+    requestErrorEl.textContent = "";
+    requestSubmitBtn.disabled = true;
+
+    const code = document.getElementById("code").value;
+    const displayName = document.getElementById("display-name").value;
+    const email = document.getElementById("email").value;
 
     try {
-      const res = await fetch("/api/join/student", {
+      const res = await fetch("/api/join/student/request-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: document.getElementById("code").value,
-          username: document.getElementById("username").value,
-          password: document.getElementById("password").value,
-          displayName: document.getElementById("display-name").value,
-          email: document.getElementById("email").value
-        })
+        body: JSON.stringify({ code, displayName, email })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        pendingEmail = email;
+        verifySubtitleEl.textContent = `Enter the 6-digit code we sent to ${email}.`;
+        requestForm.hidden = true;
+        verifyForm.hidden = false;
+        document.getElementById("verify-code").focus();
+      } else {
+        requestErrorEl.textContent = data.error || "Could not send a verification code.";
+      }
+    } catch {
+      requestErrorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      requestSubmitBtn.disabled = false;
+    }
+  });
+
+  verifyForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    verifyErrorEl.textContent = "";
+    verifySuccessEl.textContent = "";
+    verifySubmitBtn.disabled = true;
+
+    const code = document.getElementById("verify-code").value;
+
+    try {
+      const res = await fetch("/api/join/student/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail, code })
       });
 
       if (res.ok) {
@@ -260,12 +283,20 @@
       }
 
       const data = await res.json().catch(() => ({}));
-      errorEl.textContent = data.error || "Could not create your account.";
+      verifyErrorEl.textContent = data.error || "Could not verify that code.";
     } catch {
-      errorEl.textContent = "Could not reach the server. Try again.";
+      verifyErrorEl.textContent = "Could not reach the server. Try again.";
     } finally {
-      submitBtn.disabled = false;
+      verifySubmitBtn.disabled = false;
     }
+  });
+
+  document.getElementById("back-btn").addEventListener("click", () => {
+    verifyForm.hidden = true;
+    requestForm.hidden = false;
+    verifyErrorEl.textContent = "";
+    verifySuccessEl.textContent = "";
+    document.getElementById("verify-code").value = "";
   });
 </script>
 </body>

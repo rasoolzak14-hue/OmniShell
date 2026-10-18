@@ -57,6 +57,12 @@
     font-size: 0.85rem;
     text-align: center;
   }
+  .invited-email {
+    text-align: center;
+    font-weight: 600;
+    color: var(--accent);
+    margin: -12px 0 24px;
+  }
   label {
     display: block;
     font-size: 0.85rem;
@@ -76,34 +82,6 @@
   input:focus {
     outline: none;
     border-color: var(--accent);
-  }
-  .field-with-toggle {
-    position: relative;
-  }
-  .field-with-toggle input {
-    padding-right: 56px;
-  }
-  .toggle-visibility {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 6px;
-    width: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .toggle-visibility:hover {
-    color: var(--text);
-  }
-  .toggle-visibility svg {
-    width: 18px;
-    height: 18px;
   }
   button {
     width: 100%;
@@ -129,7 +107,7 @@
   .login-link {
     display: block;
     text-align: center;
-    margin-top: 16px;
+    margin-top: 12px;
     color: var(--muted);
     font-size: 0.85rem;
     text-decoration: none;
@@ -155,38 +133,36 @@
     color: var(--text);
     border-color: var(--accent);
   }
+  [hidden] {
+    display: none !important;
+  }
 </style>
 </head>
 <body>
 
 <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
 
-<form class="join-card" id="join-form">
+<div class="join-card" id="loading-state">
   <h1>Join as a teacher</h1>
-  <p class="subtitle">Enter the invite code your headteacher shared with you.</p>
+  <p class="subtitle">Checking your invite&hellip;</p>
+</div>
 
-  <label for="code">Invite code</label>
-  <input id="code" name="code" type="text" autocomplete="off" required style="text-transform:uppercase;letter-spacing:2px;">
+<div class="join-card" id="invalid-state" hidden>
+  <h1>Invite not found</h1>
+  <p class="subtitle" id="invalid-message">This invite link is invalid or has expired. Ask your headteacher to send you a new one.</p>
+  <a class="login-link" href="/login.html">Back to sign in</a>
+</div>
 
-  <label for="username">Choose a username</label>
-  <input id="username" name="username" type="text" autocomplete="username" required>
+<form class="join-card" id="accept-form" hidden>
+  <h1>Join as a teacher</h1>
+  <p class="invited-email" id="invited-email"></p>
 
   <label for="display-name">Your name</label>
-  <input id="display-name" name="displayName" type="text" autocomplete="name">
+  <input id="display-name" name="displayName" type="text" autocomplete="name" required>
 
-  <label for="email">School email (optional)</label>
-  <input id="email" name="email" type="email" autocomplete="email">
+  <p class="error" id="accept-error"></p>
 
-  <label for="password">Choose a password</label>
-  <div class="field-with-toggle">
-    <input id="password" name="password" type="password" autocomplete="new-password" required>
-    <button type="button" class="toggle-visibility" data-target="password" aria-label="Show password"></button>
-  </div>
-
-  <p class="error" id="error"></p>
-
-  <button type="submit" id="submit-btn">Create my account</button>
-  <a class="login-link" href="/login.html">Already have an account? Sign in</a>
+  <button type="submit" id="accept-submit-btn">Create my account</button>
 </form>
 
 <script>
@@ -212,46 +188,60 @@
 
   updateThemeToggleLabel();
 
-  const form = document.getElementById("join-form");
-  const errorEl = document.getElementById("error");
-  const submitBtn = document.getElementById("submit-btn");
+  const loadingState = document.getElementById("loading-state");
+  const invalidState = document.getElementById("invalid-state");
+  const invalidMessage = document.getElementById("invalid-message");
+  const acceptForm = document.getElementById("accept-form");
+  const acceptErrorEl = document.getElementById("accept-error");
+  const acceptSubmitBtn = document.getElementById("accept-submit-btn");
 
-  const EYE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-  const EYE_OFF_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"></path></svg>';
+  const token = new URLSearchParams(window.location.search).get("token");
 
-  document.querySelectorAll(".toggle-visibility").forEach((btn) => {
-    btn.innerHTML = EYE_ICON;
-    btn.addEventListener("click", () => {
-      const target = document.getElementById(btn.dataset.target);
-      const showing = target.type === "text";
-      target.type = showing ? "password" : "text";
-      btn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
-      btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
-    });
-  });
+  async function init() {
+    invalidState.hidden = true;
+    acceptForm.hidden = true;
 
-  const params = new URLSearchParams(window.location.search);
-  const codeParam = params.get("code");
-  if (codeParam) {
-    document.getElementById("code").value = codeParam.toUpperCase();
-  }
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    errorEl.textContent = "";
-    submitBtn.disabled = true;
+    if (!token) {
+      invalidMessage.textContent = "This page needs an invite link — ask your headteacher to send you one.";
+      loadingState.hidden = true;
+      invalidState.hidden = false;
+      return;
+    }
 
     try {
-      const res = await fetch("/api/join/teacher", {
+      const res = await fetch("/api/invite/teacher/lookup?token=" + encodeURIComponent(token));
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        invalidMessage.textContent = data.error || "This invite link is invalid or has expired.";
+        loadingState.hidden = true;
+        invalidState.hidden = false;
+        return;
+      }
+
+      document.getElementById("invited-email").textContent = data.email;
+      loadingState.hidden = true;
+      acceptForm.hidden = false;
+      document.getElementById("display-name").focus();
+    } catch {
+      invalidMessage.textContent = "Could not reach the server. Try again.";
+      loadingState.hidden = true;
+      invalidState.hidden = false;
+    }
+  }
+
+  acceptForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    acceptErrorEl.textContent = "";
+    acceptSubmitBtn.disabled = true;
+
+    const displayName = document.getElementById("display-name").value;
+
+    try {
+      const res = await fetch("/api/invite/teacher/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: document.getElementById("code").value,
-          username: document.getElementById("username").value,
-          password: document.getElementById("password").value,
-          displayName: document.getElementById("display-name").value,
-          email: document.getElementById("email").value
-        })
+        body: JSON.stringify({ token, displayName })
       });
 
       if (res.ok) {
@@ -260,13 +250,15 @@
       }
 
       const data = await res.json().catch(() => ({}));
-      errorEl.textContent = data.error || "Could not create your account.";
+      acceptErrorEl.textContent = data.error || "Could not create your account.";
     } catch {
-      errorEl.textContent = "Could not reach the server. Try again.";
+      acceptErrorEl.textContent = "Could not reach the server. Try again.";
     } finally {
-      submitBtn.disabled = false;
+      acceptSubmitBtn.disabled = false;
     }
   });
+
+  init();
 </script>
 </body>
 </html>

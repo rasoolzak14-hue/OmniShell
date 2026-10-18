@@ -246,11 +246,29 @@ searchInput.addEventListener("input", () => {
   render(search(searchInput.value));
 });
 
+// Shows the free-trial banner when /api/me reports a trialing plan. The
+// Worker doesn't send plan info yet, so until it does this stays hidden.
+function renderTrialBanner(plan) {
+  const banner = document.getElementById("trial-banner");
+  if (!plan || plan.status !== "trialing" || !plan.trialEndsAt) {
+    banner.hidden = true;
+    return;
+  }
+  const days = Math.max(0, Math.ceil((new Date(plan.trialEndsAt).getTime() - Date.now()) / 86400000));
+  document.getElementById("trial-text").textContent =
+    days === 0 ? "Your free trial ends today"
+    : days === 1 ? "1 day left in your free trial"
+    : `${days} days left in your free trial`;
+  banner.hidden = false;
+}
+
+// Returns the signed-in user's role, or null if it couldn't be determined.
 async function loadRoleLink() {
   try {
     const res = await fetch("/api/me");
-    if (!res.ok) return;
+    if (!res.ok) return null;
     const data = await res.json();
+    renderTrialBanner(data.plan);
     if (data.role === "headteacher") {
       roleLink.textContent = "Headteacher Dashboard";
       roleLink.href = "/headteacher.html";
@@ -259,16 +277,37 @@ async function loadRoleLink() {
       roleLink.textContent = "Teacher Dashboard";
       roleLink.href = "/teacher.html";
       roleLink.hidden = false;
-    } else if (data.role === "student") {
+    } else if (data.role === "student" || data.role === "independent") {
       roleLink.textContent = "Take a Quiz";
       roleLink.href = "/quiz.html";
       roleLink.hidden = false;
     }
+    return data.role;
   } catch (e) {
     console.warn("Could not load role", e);
+    return null;
   }
 }
 
+// School members (headteacher, teacher, student) see their school's syllabus
+// and the extra-material heading. Independent learners belong to no school,
+// so they just get a plain "Languages" list. If the role can't be determined
+// we fall back to the school layout, which is what everyone saw before.
+async function initHomeLayout() {
+  const role = await loadRoleLink();
+  const extraHeading = document.getElementById("extra-heading");
+
+  if (role === "independent") {
+    extraHeading.textContent = "Languages";
+    extraHeading.hidden = false;
+    return;
+  }
+
+  document.getElementById("syllabus-heading").hidden = false;
+  document.getElementById("syllabus-empty").hidden = false;
+  extraHeading.hidden = false;
+  await loadSyllabusCard();
+}
+
 loadSynonyms();
-loadRoleLink();
-loadSyllabusCard();
+initHomeLayout();

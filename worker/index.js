@@ -63,6 +63,150 @@ function generateInviteCode(length = 8) {
   return code;
 }
 
+// Plain digits — this one gets typed in off an email, not read off a screen
+// alongside a link, so it matches the familiar "6-digit code" pattern.
+function generateNumericCode(length = 6) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let code = "";
+  for (let i = 0; i < length; i++) {
+    code += (bytes[i] % 10).toString();
+  }
+  return code;
+}
+
+// Long and random rather than typed — this rides in a URL, not read off a
+// screen and copied by hand, so it doesn't need the visually-distinct
+// alphabet the other code types use.
+function generateMagicToken() {
+  return toHex(crypto.getRandomValues(new Uint8Array(24)));
+}
+
+const EMAIL_CODE_TTL_MINUTES = 10;
+const EMAIL_CODE_RESEND_COOLDOWN_SECONDS = 30;
+const EMAIL_CODE_MAX_PER_HOUR = 6;
+const TEACHER_INVITE_TTL_MINUTES = 7 * 24 * 60;
+
+// Best-effort email send via Resend (https://resend.com). Returns true/false
+// rather than throwing, so a misconfigured or not-yet-set-up provider never
+// breaks the request that triggered it — the code still gets created and
+// stored, it just won't reach an inbox until RESEND_API_KEY is set.
+async function sendEmail(env, { to, subject, text }) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    console.error(`sendEmail: no email provider configured — would have sent to ${to}: ${subject}`);
+    return false;
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject, text })
+    });
+    if (!res.ok) {
+      console.error(`sendEmail: provider returned ${res.status} for ${to}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`sendEmail: request failed for ${to}: ${e.message}`);
+    return false;
+  }
+}
+
+// Shared by every request-code / invite endpoint: creates and emails a fresh
+// code, throttling repeat requests for the same email+purpose so "Resend"
+// can't be used to spam someone's inbox. Defaults to a short numeric OTP;
+// pass `code`/`ttlMinutes` to issue a long-lived magic-link token instead.
+async function issueEmailCode(env, { email, purpose, payload, subject, bodyText, code, ttlMinutes }) {
+  const recent = await env.DB
+    .prepare("SELECT created_at FROM email_codes WHERE email = ? AND purpose = ? ORDER BY created_at DESC LIMIT 1")
+    .bind(email, purpose)
+    .first();
+  if (recent) {
+    const ageSeconds = (Date.now() - new Date(recent.created_at).getTime()) / 1000;
+    if (ageSeconds < EMAIL_CODE_RESEND_COOLDOWN_SECONDS) {
+      return { ok: false, error: "Please wait before requesting another code." };
+    }
+  }
+
+  // Hourly cap per address, across every purpose. Open signup means anyone
+  // can type any email in, so this stops the form being used to flood an
+  // inbox. (Pair with a Cloudflare Rate Limiting rule for per-IP limits.)
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const lastHour = await env.DB
+    .prepare("SELECT COUNT(*) AS n FROM email_codes WHERE email = ? AND created_at > ?")
+    .bind(email, hourAgo)
+    .first();
+  if (lastHour && lastHour.n >= EMAIL_CODE_MAX_PER_HOUR) {
+    return { ok: false, error: "Too many codes requested. Please try again later." };
+  }
+
+  const finalCode = code || generateNumericCode();
+  const expiresAt = new Date(Date.now() + (ttlMinutes || EMAIL_CODE_TTL_MINUTES) * 60 * 1000).toISOString();
+
+  await env.DB
+    .prepare("INSERT INTO email_codes (email, code, purpose, payload, expires_at, consumed, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)")
+    .bind(email, finalCode, purpose, payload ? JSON.stringify(payload) : null, expiresAt, new Date().toISOString())
+    .run();
+
+  await sendEmail(env, { to: email, subject, text: bodyText(finalCode) });
+
+  return { ok: true };
+}
+
+// Looks up and consumes a matching, unexpired code. Returns the parsed
+// payload (or null) on success, or null if the code didn't match.
+async function consumeEmailCode(env, { email, purpose, code }) {
+  const row = await env.DB
+    .prepare(
+      "SELECT id, payload, expires_at FROM email_codes WHERE email = ? AND purpose = ? AND code = ? AND consumed = 0 ORDER BY created_at DESC LIMIT 1"
+    )
+    .bind(email, purpose, code)
+    .first();
+
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) {
+    return { found: false };
+  }
+
+  await env.DB.prepare("UPDATE email_codes SET consumed = 1 WHERE id = ?").bind(row.id).run();
+
+  return { found: true, payload: row.payload ? JSON.parse(row.payload) : null };
+}
+
+// Magic-link variant: the token itself (long and random) is the only thing
+// the client has — it doesn't know the email in advance — so lookup is by
+// purpose+code alone rather than email+purpose+code.
+async function lookupEmailCode(env, { purpose, code }) {
+  const row = await env.DB
+    .prepare(
+      "SELECT email, payload, expires_at FROM email_codes WHERE purpose = ? AND code = ? AND consumed = 0 ORDER BY created_at DESC LIMIT 1"
+    )
+    .bind(purpose, code)
+    .first();
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) return null;
+  return { email: row.email, payload: row.payload ? JSON.parse(row.payload) : null };
+}
+
+async function consumeEmailCodeByToken(env, { purpose, code }) {
+  const row = await env.DB
+    .prepare(
+      "SELECT id, email, payload, expires_at FROM email_codes WHERE purpose = ? AND code = ? AND consumed = 0 ORDER BY created_at DESC LIMIT 1"
+    )
+    .bind(purpose, code)
+    .first();
+
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) {
+    return { found: false };
+  }
+
+  await env.DB.prepare("UPDATE email_codes SET consumed = 1 WHERE id = ?").bind(row.id).run();
+
+  return { found: true, email: row.email, payload: row.payload ? JSON.parse(row.payload) : null };
+}
+
 async function pbkdf2Hash(password, saltBytes, iterations = PBKDF2_ITERATIONS) {
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -146,7 +290,12 @@ async function verifySession(cookieValue, env) {
   if (typeof payload.userId !== "number") {
     return null;
   }
-  if (payload.role !== "headteacher" && payload.role !== "teacher" && payload.role !== "student") {
+  if (
+    payload.role !== "headteacher" &&
+    payload.role !== "teacher" &&
+    payload.role !== "student" &&
+    payload.role !== "independent"
+  ) {
     payload.role = "teacher";
   }
 
@@ -259,10 +408,88 @@ async function handleLogin(request, env) {
   });
 }
 
+// Returning-login counterpart to the join flow, for teacher/student accounts
+// that have no usable password (created via email+code in the first place).
+// Always reports success regardless of whether the email matches an
+// account, so this endpoint can't be used to enumerate registered emails.
+async function handleLoginRequestCode(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const email = ((body && body.email) || "").trim().toLowerCase();
+  if (!email) {
+    return jsonError(400, "email is required");
+  }
+
+  const account = await env.DB
+    .prepare("SELECT id FROM schools WHERE email = ? AND active = 1 AND role IN ('teacher', 'student', 'independent')")
+    .bind(email)
+    .first();
+
+  if (account) {
+    await issueEmailCode(env, {
+      email,
+      purpose: "login",
+      payload: null,
+      subject: "Your OmniShell sign-in code",
+      bodyText: (verificationCode) =>
+        `Your OmniShell sign-in code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`
+    });
+  }
+
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+async function handleLoginVerifyCode(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const email = ((body && body.email) || "").trim().toLowerCase();
+  const code = ((body && body.code) || "").trim();
+  if (!email || !code) {
+    return jsonError(400, "email and code are required");
+  }
+
+  const result = await consumeEmailCode(env, { email, purpose: "login", code });
+  if (!result.found) {
+    await logLoginAttempt(env, { request, username: email, role: null, accountId: null, success: false });
+    return jsonError(400, "That code is invalid or has expired.");
+  }
+
+  const account = await env.DB
+    .prepare("SELECT id, username, role, active FROM schools WHERE email = ? AND role IN ('teacher', 'student', 'independent')")
+    .bind(email)
+    .first();
+
+  if (!account || !account.active) {
+    await logLoginAttempt(env, { request, username: email, role: null, accountId: null, success: false });
+    return jsonError(404, "Account not found");
+  }
+
+  await logLoginAttempt(env, { request, username: account.username, role: account.role, accountId: account.id, success: true });
+
+  const cookieValue = await signSession({ userId: account.id, username: account.username, role: account.role }, env);
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": sessionCookieHeader(cookieValue)
+    }
+  });
+}
+
 function handleLogout() {
   const headers = new Headers();
   headers.set("Set-Cookie", `${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
-  headers.set("Location", "/login.html");
+  headers.set("Location", "/");
   return new Response(null, { status: 302, headers });
 }
 
@@ -361,6 +588,21 @@ async function handleAdminListHeadteachers(request, env) {
 
   const result = await env.DB
     .prepare("SELECT id, username, display_name, active, created_at FROM schools WHERE role = 'headteacher' ORDER BY display_name")
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleAdminListLearners(request, env) {
+  if (!(await requireAdmin(request, env))) {
+    return jsonError(403, "Forbidden");
+  }
+
+  const result = await env.DB
+    .prepare("SELECT id, username, display_name, active, created_at FROM schools WHERE role = 'independent' ORDER BY created_at DESC")
     .all();
 
   return new Response(JSON.stringify({ rows: result.results || [] }), {
@@ -701,6 +943,23 @@ async function handleTeacherCreateStudent(request, env, session) {
   });
 }
 
+// A student is manageable by a teacher if that teacher directly owns them
+// (teacher_id, set when the teacher added them directly or owns the
+// classroom they joined) or has co-teacher access to their classroom.
+// Never trust a studentId from the client without this check.
+async function findManageableStudent(env, { studentId, teacherId }) {
+  return env.DB
+    .prepare(
+      `SELECT s.id FROM schools s
+       WHERE s.id = ? AND s.role = 'student' AND (
+         s.teacher_id = ?
+         OR s.classroom_id IN (SELECT classroom_id FROM classroom_teachers WHERE teacher_id = ?)
+       )`
+    )
+    .bind(studentId, teacherId, teacherId)
+    .first();
+}
+
 async function handleTeacherDeleteStudent(request, env, session) {
   if (session.role !== "teacher") {
     return jsonError(403, "Forbidden");
@@ -718,12 +977,7 @@ async function handleTeacherDeleteStudent(request, env, session) {
     return jsonError(400, "studentId is required");
   }
 
-  // Only allow deleting a student that actually belongs to the calling
-  // teacher — never trust studentId alone.
-  const student = await env.DB
-    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'student'")
-    .bind(studentId, session.userId)
-    .first();
+  const student = await findManageableStudent(env, { studentId, teacherId: session.userId });
 
   if (!student) {
     return jsonError(404, "Student not found");
@@ -756,12 +1010,7 @@ async function handleTeacherResetStudentPassword(request, env, session) {
     return jsonError(400, "studentId and newPassword are required");
   }
 
-  // Only allow resetting a password for a student that actually belongs to
-  // the calling teacher — never trust studentId alone.
-  const student = await env.DB
-    .prepare("SELECT id FROM schools WHERE id = ? AND teacher_id = ? AND role = 'student'")
-    .bind(studentId, session.userId)
-    .first();
+  const student = await findManageableStudent(env, { studentId, teacherId: session.userId });
 
   if (!student) {
     return jsonError(404, "Student not found");
@@ -793,11 +1042,14 @@ async function handleTeacherProgress(env, session) {
        FROM schools s
        LEFT JOIN classrooms c ON c.id = s.classroom_id
        LEFT JOIN quiz_attempts qa ON qa.student_id = s.id
-       WHERE s.teacher_id = ?
+       WHERE s.role = 'student' AND (
+         s.teacher_id = ?
+         OR s.classroom_id IN (SELECT classroom_id FROM classroom_teachers WHERE teacher_id = ?)
+       )
        ORDER BY qa.completed_at DESC
        LIMIT 500`
     )
-    .bind(session.userId)
+    .bind(session.userId, session.userId)
     .all();
 
   return new Response(JSON.stringify({ rows: result.results || [] }), {
@@ -1072,47 +1324,47 @@ async function handleHeadteacherDeleteTeacher(request, env, session) {
   });
 }
 
-// ---------- self-service joining: invite codes & classrooms ----------
+// ---------- self-service joining: teacher invites & classrooms ----------
 
-async function handleHeadteacherGetInviteCode(env, session) {
+// Creates a teacher/student account with no usable password — these accounts
+// authenticate purely via emailed 6-digit codes (join flow, then returning
+// login), so a long random value is stored just to satisfy the NOT NULL
+// salt/hash columns. Nobody ever knows it, so the password-login path is
+// effectively locked out for this account.
+async function createPasswordlessAccount(env, { email, displayName, role, teacherId, classroomId }) {
+  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+  const unusablePassword = toHex(crypto.getRandomValues(new Uint8Array(32)));
+  const hashBytes = await pbkdf2Hash(unusablePassword, saltBytes);
+
+  const result = await env.DB
+    .prepare(
+      "INSERT INTO schools (username, salt, hash, display_name, email, active, role, teacher_id, classroom_id, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)"
+    )
+    .bind(
+      email,
+      toHex(saltBytes),
+      toHex(hashBytes),
+      displayName || email,
+      email,
+      role,
+      teacherId,
+      classroomId || null,
+      new Date().toISOString()
+    )
+    .run();
+
+  return result.meta.last_row_id;
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Headteacher-initiated: enters one or more teacher emails, each gets a
+// personal one-click invite link — no shared code, no code to type at all.
+async function handleHeadteacherInviteTeachers(request, env, session) {
   if (session.role !== "headteacher") {
     return jsonError(403, "Forbidden");
   }
 
-  const row = await env.DB.prepare("SELECT invite_code FROM schools WHERE id = ?").bind(session.userId).first();
-
-  return new Response(JSON.stringify({ code: (row && row.invite_code) || null }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" }
-  });
-}
-
-async function handleHeadteacherRegenerateInviteCode(env, session) {
-  if (session.role !== "headteacher") {
-    return jsonError(403, "Forbidden");
-  }
-
-  // Extremely unlikely to collide, but retry once if it does rather than
-  // fail the request outright.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const code = generateInviteCode();
-    try {
-      await env.DB.prepare("UPDATE schools SET invite_code = ? WHERE id = ?").bind(code, session.userId).run();
-      return new Response(JSON.stringify({ code }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      });
-    } catch {
-      // Unique index collision — loop and try a fresh code.
-    }
-  }
-
-  return jsonError(500, "Could not generate a unique invite code, try again");
-}
-
-// Public — a prospective teacher isn't authenticated yet. The invite code
-// itself is what proves they're allowed to join this school.
-async function handleJoinTeacher(request, env) {
   let body;
   try {
     body = await request.json();
@@ -1120,52 +1372,121 @@ async function handleJoinTeacher(request, env) {
     return jsonError(400, "Invalid request");
   }
 
-  const code = ((body && body.code) || "").trim().toUpperCase();
-  const username = ((body && body.username) || "").trim();
-  const password = (body && body.password) || "";
-  const displayName = ((body && body.displayName) || "").trim();
-  const email = ((body && body.email) || "").trim();
-  if (!code || !username || !password) {
-    return jsonError(400, "code, username, and password are required");
+  const emails = [
+    ...new Set(
+      String((body && body.emails) || "")
+        .split(/[\n,;]+/)
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ];
+
+  if (emails.length === 0) {
+    return jsonError(400, "Enter at least one email address");
   }
 
-  const headteacher = await env.DB
-    .prepare("SELECT id, active FROM schools WHERE invite_code = ? AND role = 'headteacher'")
-    .bind(code)
-    .first();
+  const origin = new URL(request.url).origin;
+  const sent = [];
+  const skipped = [];
 
-  if (!headteacher || !headteacher.active) {
-    return jsonError(404, "Invalid invite code");
+  for (const email of emails) {
+    if (!EMAIL_PATTERN.test(email)) {
+      skipped.push({ email, reason: "not a valid email address" });
+      continue;
+    }
+
+    const existing = await env.DB.prepare("SELECT id FROM schools WHERE username = ? OR email = ?").bind(email, email).first();
+    if (existing) {
+      skipped.push({ email, reason: "already has an account" });
+      continue;
+    }
+
+    const token = generateMagicToken();
+    const link = `${origin}/join-teacher.html?token=${token}`;
+
+    const result = await issueEmailCode(env, {
+      email,
+      purpose: "invite_teacher",
+      payload: { headteacherId: session.userId },
+      code: token,
+      ttlMinutes: TEACHER_INVITE_TTL_MINUTES,
+      subject: "You're invited to join OmniShell",
+      bodyText: () =>
+        `You've been invited to join OmniShell as a teacher. Click the link below to create your account:\n\n${link}\n\nThis link expires in 7 days.`
+    });
+
+    if (result.ok) sent.push(email);
+    else skipped.push({ email, reason: result.error });
   }
 
-  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-  const hashBytes = await pbkdf2Hash(password, saltBytes);
-  let newId;
+  return new Response(JSON.stringify({ sent, skipped }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
 
+// Public — lets the accept-invite page show which email the link is for
+// before the teacher submits their name.
+async function handleInviteTeacherLookup(request, env) {
+  const url = new URL(request.url);
+  const token = (url.searchParams.get("token") || "").trim();
+  if (!token) {
+    return jsonError(400, "token is required");
+  }
+
+  const found = await lookupEmailCode(env, { purpose: "invite_teacher", code: token });
+  if (!found) {
+    return jsonError(404, "This invite link is invalid or has expired.");
+  }
+
+  return new Response(JSON.stringify({ email: found.email }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+// Public — a prospective teacher isn't authenticated yet. The token itself
+// (only ever sent to their inbox) is what proves the email is really theirs
+// and that they were actually invited.
+async function handleInviteTeacherAccept(request, env) {
+  let body;
   try {
-    const result = await env.DB
-      .prepare(
-        "INSERT INTO schools (username, salt, hash, display_name, email, active, role, teacher_id, created_at) VALUES (?, ?, ?, ?, ?, 1, 'teacher', ?, ?)"
-      )
-      .bind(
-        username,
-        toHex(saltBytes),
-        toHex(hashBytes),
-        displayName || username,
-        email || null,
-        headteacher.id,
-        new Date().toISOString()
-      )
-      .run();
-    newId = result.meta.last_row_id;
+    body = await request.json();
   } catch {
-    return jsonError(409, "Username already exists or database error");
+    return jsonError(400, "Invalid request");
   }
 
-  await logLoginAttempt(env, { request, username, role: "teacher", accountId: newId, success: true });
+  const token = ((body && body.token) || "").trim();
+  const displayName = ((body && body.displayName) || "").trim();
+  if (!token || !displayName) {
+    return jsonError(400, "token and name are required");
+  }
 
-  const cookieValue = await signSession({ userId: newId, username, role: "teacher" }, env);
-  return new Response(JSON.stringify({ ok: true, username }), {
+  const result = await consumeEmailCodeByToken(env, { purpose: "invite_teacher", code: token });
+  if (!result.found) {
+    return jsonError(400, "This invite link is invalid or has expired.");
+  }
+
+  const { email, payload } = result;
+  const headteacher = await env.DB
+    .prepare("SELECT id, active FROM schools WHERE id = ? AND role = 'headteacher'")
+    .bind(payload.headteacherId)
+    .first();
+  if (!headteacher || !headteacher.active) {
+    return jsonError(404, "This invite is no longer valid.");
+  }
+
+  let newId;
+  try {
+    newId = await createPasswordlessAccount(env, { email, displayName, role: "teacher", teacherId: headteacher.id });
+  } catch {
+    return jsonError(409, "An account with this email already exists — sign in instead.");
+  }
+
+  await logLoginAttempt(env, { request, username: email, role: "teacher", accountId: newId, success: true });
+
+  const cookieValue = await signSession({ userId: newId, username: email, role: "teacher" }, env);
+  return new Response(JSON.stringify({ ok: true }), {
     status: 201,
     headers: {
       "Content-Type": "application/json",
@@ -1174,14 +1495,25 @@ async function handleJoinTeacher(request, env) {
   });
 }
 
+// Every classroom the teacher can see — the ones they own, plus any they've
+// been given co-teacher access to. `is_owner` tells the UI whether to show
+// owner-only controls (regenerate code, manage co-teachers).
 async function handleTeacherClassrooms(env, session) {
   if (session.role !== "teacher") {
     return jsonError(403, "Forbidden");
   }
 
   const result = await env.DB
-    .prepare("SELECT id, name, join_code, created_at FROM classrooms WHERE teacher_id = ? ORDER BY name")
-    .bind(session.userId)
+    .prepare(
+      `SELECT id, name, join_code, created_at, 1 AS is_owner FROM classrooms WHERE teacher_id = ?
+       UNION
+       SELECT c.id, c.name, c.join_code, c.created_at, 0 AS is_owner
+       FROM classrooms c
+       JOIN classroom_teachers ct ON ct.classroom_id = c.id
+       WHERE ct.teacher_id = ?
+       ORDER BY name`
+    )
+    .bind(session.userId, session.userId)
     .all();
 
   return new Response(JSON.stringify({ rows: result.results || [] }), {
@@ -1270,9 +1602,144 @@ async function handleTeacherRegenerateClassroomCode(request, env, session) {
   return jsonError(500, "Could not generate a unique join code, try again");
 }
 
-// Public — a prospective student isn't authenticated yet. The classroom
-// join code is what proves they're allowed to join that class.
-async function handleJoinStudent(request, env) {
+// Co-teacher management is owner-only — a single point of accountability
+// for who has access to a classroom, rather than any co-teacher being able
+// to add further co-teachers.
+async function handleTeacherAddCoTeacher(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const classroomId = Number(body && body.classroomId);
+  const email = ((body && body.email) || "").trim().toLowerCase();
+  if (!Number.isInteger(classroomId) || !email) {
+    return jsonError(400, "classroomId and email are required");
+  }
+
+  const classroom = await env.DB
+    .prepare("SELECT id, teacher_id FROM classrooms WHERE id = ? AND teacher_id = ?")
+    .bind(classroomId, session.userId)
+    .first();
+  if (!classroom) {
+    return jsonError(404, "Classroom not found");
+  }
+
+  // Get the calling teacher's own headteacher, so we can confirm the
+  // invited teacher belongs to the same school — never let someone add a
+  // co-teacher from another school entirely.
+  const owner = await env.DB.prepare("SELECT teacher_id FROM schools WHERE id = ?").bind(session.userId).first();
+
+  const coTeacher = await env.DB
+    .prepare("SELECT id FROM schools WHERE email = ? AND role = 'teacher' AND active = 1 AND teacher_id = ?")
+    .bind(email, owner ? owner.teacher_id : null)
+    .first();
+  if (!coTeacher) {
+    return jsonError(404, "No active teacher at your school found with that email");
+  }
+
+  if (coTeacher.id === session.userId) {
+    return jsonError(400, "You already have access to your own classroom");
+  }
+
+  try {
+    await env.DB
+      .prepare("INSERT INTO classroom_teachers (classroom_id, teacher_id, added_at) VALUES (?, ?, ?)")
+      .bind(classroomId, coTeacher.id, new Date().toISOString())
+      .run();
+  } catch {
+    return jsonError(409, "That teacher already has access to this classroom");
+  }
+
+  return new Response(JSON.stringify({ ok: true, email }), {
+    status: 201,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleTeacherRemoveCoTeacher(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const classroomId = Number(body && body.classroomId);
+  const teacherId = Number(body && body.teacherId);
+  if (!Number.isInteger(classroomId) || !Number.isInteger(teacherId)) {
+    return jsonError(400, "classroomId and teacherId are required");
+  }
+
+  const classroom = await env.DB
+    .prepare("SELECT id FROM classrooms WHERE id = ? AND teacher_id = ?")
+    .bind(classroomId, session.userId)
+    .first();
+  if (!classroom) {
+    return jsonError(404, "Classroom not found");
+  }
+
+  await env.DB
+    .prepare("DELETE FROM classroom_teachers WHERE classroom_id = ? AND teacher_id = ?")
+    .bind(classroomId, teacherId)
+    .run();
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+async function handleTeacherListCoTeachers(request, env, session) {
+  if (session.role !== "teacher") {
+    return jsonError(403, "Forbidden");
+  }
+
+  const url = new URL(request.url);
+  const classroomId = Number(url.searchParams.get("classroomId"));
+  if (!Number.isInteger(classroomId)) {
+    return jsonError(400, "classroomId is required");
+  }
+
+  const classroom = await env.DB
+    .prepare("SELECT id FROM classrooms WHERE id = ? AND teacher_id = ?")
+    .bind(classroomId, session.userId)
+    .first();
+  if (!classroom) {
+    return jsonError(404, "Classroom not found");
+  }
+
+  const result = await env.DB
+    .prepare(
+      `SELECT s.id, s.username, s.display_name, s.email
+       FROM classroom_teachers ct
+       JOIN schools s ON s.id = ct.teacher_id
+       WHERE ct.classroom_id = ?
+       ORDER BY s.display_name`
+    )
+    .bind(classroomId)
+    .all();
+
+  return new Response(JSON.stringify({ rows: result.results || [] }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+// Public — a prospective student isn't authenticated yet. The classroom join
+// code is what proves they're allowed to join that class; the emailed code
+// proves the email address is really theirs.
+async function handleJoinStudentRequestCode(request, env) {
   let body;
   try {
     body = await request.json();
@@ -1281,12 +1748,10 @@ async function handleJoinStudent(request, env) {
   }
 
   const code = ((body && body.code) || "").trim().toUpperCase();
-  const username = ((body && body.username) || "").trim();
-  const password = (body && body.password) || "";
+  const email = ((body && body.email) || "").trim().toLowerCase();
   const displayName = ((body && body.displayName) || "").trim();
-  const email = ((body && body.email) || "").trim();
-  if (!code || !username || !password) {
-    return jsonError(400, "code, username, and password are required");
+  if (!code || !email || !displayName) {
+    return jsonError(400, "code, email, and name are required");
   }
 
   const classroom = await env.DB.prepare("SELECT id, teacher_id FROM classrooms WHERE join_code = ?").bind(code).first();
@@ -1294,35 +1759,164 @@ async function handleJoinStudent(request, env) {
     return jsonError(404, "Invalid class code");
   }
 
-  const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-  const hashBytes = await pbkdf2Hash(password, saltBytes);
-  let newId;
-
-  try {
-    const result = await env.DB
-      .prepare(
-        "INSERT INTO schools (username, salt, hash, display_name, email, active, role, teacher_id, classroom_id, created_at) VALUES (?, ?, ?, ?, ?, 1, 'student', ?, ?, ?)"
-      )
-      .bind(
-        username,
-        toHex(saltBytes),
-        toHex(hashBytes),
-        displayName || username,
-        email || null,
-        classroom.teacher_id,
-        classroom.id,
-        new Date().toISOString()
-      )
-      .run();
-    newId = result.meta.last_row_id;
-  } catch {
-    return jsonError(409, "Username already exists or database error");
+  const existing = await env.DB.prepare("SELECT id FROM schools WHERE username = ? OR email = ?").bind(email, email).first();
+  if (existing) {
+    return jsonError(409, "An account with this email already exists — sign in instead.");
   }
 
-  await logLoginAttempt(env, { request, username, role: "student", accountId: newId, success: true });
+  const result = await issueEmailCode(env, {
+    email,
+    purpose: "join_student",
+    payload: { classCode: code, displayName, classroomId: classroom.id },
+    subject: "Your OmniShell verification code",
+    bodyText: (verificationCode) =>
+      `Your OmniShell verification code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`
+  });
 
-  const cookieValue = await signSession({ userId: newId, username, role: "student" }, env);
-  return new Response(JSON.stringify({ ok: true, username }), {
+  if (!result.ok) {
+    return jsonError(429, result.error);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+async function handleJoinStudentVerifyCode(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const email = ((body && body.email) || "").trim().toLowerCase();
+  const code = ((body && body.code) || "").trim();
+  if (!email || !code) {
+    return jsonError(400, "email and code are required");
+  }
+
+  const result = await consumeEmailCode(env, { email, purpose: "join_student", code });
+  if (!result.found) {
+    return jsonError(400, "That code is invalid or has expired.");
+  }
+
+  const { classCode, displayName, classroomId } = result.payload;
+
+  // Re-check the class code is still valid — it may have been regenerated in
+  // the time between requesting and entering the code.
+  const classroom = await env.DB
+    .prepare("SELECT id, teacher_id FROM classrooms WHERE id = ? AND join_code = ?")
+    .bind(classroomId, classCode)
+    .first();
+  if (!classroom) {
+    return jsonError(404, "This class code is no longer valid — ask your teacher for a new one.");
+  }
+
+  let newId;
+  try {
+    newId = await createPasswordlessAccount(env, {
+      email,
+      displayName,
+      role: "student",
+      teacherId: classroom.teacher_id,
+      classroomId: classroom.id
+    });
+  } catch {
+    return jsonError(409, "An account with this email already exists — sign in instead.");
+  }
+
+  await logLoginAttempt(env, { request, username: email, role: "student", accountId: newId, success: true });
+
+  const cookieValue = await signSession({ userId: newId, username: email, role: "student" }, env);
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 201,
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": sessionCookieHeader(cookieValue)
+    }
+  });
+}
+
+// Independent learners — no school, no teacher. Public signup, so the emailed
+// code is the only thing proving the address is theirs; nothing is created
+// until it's entered. Name is collected up front and held in the code's
+// payload, mirroring the student join flow.
+async function handleLearnerSignupRequestCode(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const email = ((body && body.email) || "").trim().toLowerCase();
+  const displayName = ((body && body.displayName) || "").trim();
+  if (!email || !displayName) {
+    return jsonError(400, "name and email are required");
+  }
+  if (!EMAIL_PATTERN.test(email) || email.length > 200) {
+    return jsonError(400, "Enter a valid email address");
+  }
+  if (displayName.length > 80) {
+    return jsonError(400, "Name is too long");
+  }
+
+  const existing = await env.DB.prepare("SELECT id FROM schools WHERE username = ? OR email = ?").bind(email, email).first();
+  if (existing) {
+    return jsonError(409, "An account with this email already exists. Log in instead, or use School Login if you're with a school.");
+  }
+
+  const result = await issueEmailCode(env, {
+    email,
+    purpose: "learner_signup",
+    payload: { displayName },
+    subject: "Your OmniShell verification code",
+    bodyText: (verificationCode) =>
+      `Your OmniShell verification code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`
+  });
+
+  if (!result.ok) {
+    return jsonError(429, result.error);
+  }
+
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+async function handleLearnerSignupVerifyCode(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const email = ((body && body.email) || "").trim().toLowerCase();
+  const code = ((body && body.code) || "").trim();
+  if (!email || !code) {
+    return jsonError(400, "email and code are required");
+  }
+
+  const result = await consumeEmailCode(env, { email, purpose: "learner_signup", code });
+  if (!result.found) {
+    return jsonError(400, "That code is invalid or has expired.");
+  }
+
+  let newId;
+  try {
+    newId = await createPasswordlessAccount(env, {
+      email,
+      displayName: result.payload.displayName,
+      role: "independent",
+      teacherId: null,
+      classroomId: null
+    });
+  } catch {
+    return jsonError(409, "An account with this email already exists. Log in instead.");
+  }
+
+  await logLoginAttempt(env, { request, username: email, role: "independent", accountId: newId, success: true });
+
+  const cookieValue = await signSession({ userId: newId, username: email, role: "independent" }, env);
+  return new Response(JSON.stringify({ ok: true }), {
     status: 201,
     headers: {
       "Content-Type": "application/json",
@@ -1382,14 +1976,41 @@ export default {
     if (pathname === "/join-student.html" && method === "GET") {
       return env.ASSETS.fetch(request);
     }
+    if (pathname === "/email-login.html" && method === "GET") {
+      return env.ASSETS.fetch(request);
+    }
+    if (pathname === "/learner.html" && method === "GET") {
+      return env.ASSETS.fetch(request);
+    }
+    if (pathname === "/api/learner/signup/request-code" && method === "POST") {
+      return handleLearnerSignupRequestCode(request, env);
+    }
+    if (pathname === "/api/learner/signup/verify-code" && method === "POST") {
+      return handleLearnerSignupVerifyCode(request, env);
+    }
+    if (pathname === "/api/admin/learners" && method === "GET") {
+      return handleAdminListLearners(request, env);
+    }
     if (pathname === "/api/login" && method === "POST") {
       return handleLogin(request, env);
     }
-    if (pathname === "/api/join/teacher" && method === "POST") {
-      return handleJoinTeacher(request, env);
+    if (pathname === "/api/invite/teacher/lookup" && method === "GET") {
+      return handleInviteTeacherLookup(request, env);
     }
-    if (pathname === "/api/join/student" && method === "POST") {
-      return handleJoinStudent(request, env);
+    if (pathname === "/api/invite/teacher/accept" && method === "POST") {
+      return handleInviteTeacherAccept(request, env);
+    }
+    if (pathname === "/api/join/student/request-code" && method === "POST") {
+      return handleJoinStudentRequestCode(request, env);
+    }
+    if (pathname === "/api/join/student/verify-code" && method === "POST") {
+      return handleJoinStudentVerifyCode(request, env);
+    }
+    if (pathname === "/api/login/request-code" && method === "POST") {
+      return handleLoginRequestCode(request, env);
+    }
+    if (pathname === "/api/login/verify-code" && method === "POST") {
+      return handleLoginVerifyCode(request, env);
     }
     if (pathname === "/api/logout" && (method === "GET" || method === "POST")) {
       return handleLogout();
@@ -1433,9 +2054,16 @@ export default {
     const session = await verifySession(cookies[SESSION_COOKIE], env);
 
     if (!session) {
+      // The public front door: logged-out visitors to "/" see the landing page
+      // with the School Login / Login choice. Logged-in users still get the app.
+      if (pathname === "/" && method === "GET") {
+        const landingUrl = new URL(request.url);
+        landingUrl.pathname = "/landing.html";
+        return env.ASSETS.fetch(new Request(landingUrl.toString(), request));
+      }
       const acceptsHtml = (request.headers.get("Accept") || "").includes("text/html");
       if (acceptsHtml) {
-        return Response.redirect(`${url.origin}/login.html`, 302);
+        return Response.redirect(`${url.origin}/`, 302);
       }
       return jsonError(401, "unauthorized");
     }
@@ -1470,6 +2098,15 @@ export default {
     if (pathname === "/api/teacher/classrooms/regenerate-code" && method === "POST") {
       return handleTeacherRegenerateClassroomCode(request, env, session);
     }
+    if (pathname === "/api/teacher/classrooms/add-coteacher" && method === "POST") {
+      return handleTeacherAddCoTeacher(request, env, session);
+    }
+    if (pathname === "/api/teacher/classrooms/remove-coteacher" && method === "POST") {
+      return handleTeacherRemoveCoTeacher(request, env, session);
+    }
+    if (pathname === "/api/teacher/classrooms/coteachers" && method === "GET") {
+      return handleTeacherListCoTeachers(request, env, session);
+    }
     if (pathname === "/api/headteacher/teachers" && method === "POST") {
       return handleHeadteacherCreateTeacher(request, env, session);
     }
@@ -1491,11 +2128,8 @@ export default {
     if (pathname === "/api/headteacher/syllabus" && method === "POST") {
       return handleHeadteacherSetSyllabus(request, env, session);
     }
-    if (pathname === "/api/headteacher/invite-code" && method === "GET") {
-      return handleHeadteacherGetInviteCode(env, session);
-    }
-    if (pathname === "/api/headteacher/invite-code/regenerate" && method === "POST") {
-      return handleHeadteacherRegenerateInviteCode(env, session);
+    if (pathname === "/api/headteacher/invite-teachers" && method === "POST") {
+      return handleHeadteacherInviteTeachers(request, env, session);
     }
     if (pathname === "/api/quiz/attempts" && method === "POST") {
       return handleQuizAttempt(request, env, session);

@@ -23,12 +23,21 @@
   <p class="subtitle">Search commands for Linux, PowerShell, Python, and more</p>
 </header>
 
+<!-- Only shown for independent learners on a free trial; app.js fills it in
+     from the plan info on /api/me. -->
+<div id="trial-banner" class="trial-banner" hidden>
+  <span id="trial-text"></span>
+  <a class="trial-btn" href="/plans.html">Choose a plan</a>
+</div>
+
 <main>
   <section id="provider-select">
-    <h2 class="group-heading">Syllabus</h2>
-    <p id="syllabus-empty" class="muted small-note">Your school hasn't chosen an exam board yet.</p>
+    <!-- Shown by app.js once /api/me confirms the user belongs to a school.
+         Independent learners have no school, so they only see the language list. -->
+    <h2 class="group-heading" id="syllabus-heading" hidden>Syllabus</h2>
+    <p id="syllabus-empty" class="muted small-note" hidden>Your school hasn't chosen an exam board yet.</p>
 
-    <h2 class="group-heading" id="extra-heading">Extra learning material</h2>
+    <h2 class="group-heading" id="extra-heading" hidden>Extra learning material</h2>
     <button class="provider-card" data-provider="linux" data-file="linux_commands.json">
       <span class="provider-name">Linux</span>
       <span class="provider-hint">bash / shell commands</span>

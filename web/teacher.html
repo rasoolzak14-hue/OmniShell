@@ -361,9 +361,77 @@
     padding: 14px;
     margin-bottom: 10px;
   }
+  .classroom-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+  }
   .classroom-name {
     font-weight: 600;
-    margin: 0 0 10px;
+    margin: 0;
+  }
+  .classroom-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+  .classroom-badge.owner {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .classroom-badge.coteacher {
+    color: var(--muted);
+    border-color: var(--border);
+  }
+  .coteacher-section {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .coteacher-heading {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .coteacher-list {
+    margin-bottom: 10px;
+  }
+  .coteacher-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 0.85rem;
+  }
+  .coteacher-remove-btn {
+    width: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: #ff6b6b;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+  }
+  .coteacher-remove-btn:hover {
+    background: #ff6b6b;
+    color: #0f1115;
+    border-color: #ff6b6b;
+  }
+  .coteacher-add-form {
+    display: flex;
+    gap: 8px;
+  }
+  .coteacher-add-form input {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  .coteacher-add-form button {
+    width: auto;
+    white-space: nowrap;
   }
   .invite-code-value {
     font-family: "SF Mono", Consolas, monospace;
@@ -574,62 +642,179 @@
   const classroomsListEl = document.getElementById("classrooms-list");
 
   function buildClassroomItem(classroom) {
+    const isOwner = Boolean(classroom.is_owner);
+
     const item = document.createElement("div");
     item.className = "classroom-item";
 
+    const header = document.createElement("div");
+    header.className = "classroom-header";
     const name = document.createElement("p");
     name.className = "classroom-name";
     name.textContent = classroom.name;
-    item.appendChild(name);
+    header.appendChild(name);
+    const badge = document.createElement("span");
+    badge.className = "classroom-badge " + (isOwner ? "owner" : "coteacher");
+    badge.textContent = isOwner ? "Owner" : "Co-teacher";
+    header.appendChild(badge);
+    item.appendChild(header);
 
-    const codeEl = document.createElement("span");
-    codeEl.className = "invite-code-value";
-    codeEl.textContent = classroom.join_code;
-    item.appendChild(codeEl);
+    // Co-teachers can see and manage students, but only the owner manages
+    // the join code and who else has access — one point of accountability.
+    if (isOwner) {
+      const codeEl = document.createElement("span");
+      codeEl.className = "invite-code-value";
+      codeEl.textContent = classroom.join_code;
+      item.appendChild(codeEl);
 
-    const link = `${window.location.origin}/join-student.html?code=${classroom.join_code}`;
-    const linkRow = document.createElement("div");
-    linkRow.className = "invite-link-row";
-    linkRow.innerHTML = `
-      <input type="text" readonly>
-      <button type="button">Copy link</button>
-    `;
-    linkRow.querySelector("input").value = link;
-    linkRow.querySelector("button").addEventListener("click", async (e) => {
-      const btn = e.currentTarget;
-      try {
-        await navigator.clipboard.writeText(link);
-        const original = btn.textContent;
-        btn.textContent = "Copied!";
-        setTimeout(() => { btn.textContent = original; }, 1500);
-      } catch {
-        linkRow.querySelector("input").select();
-      }
-    });
-    item.appendChild(linkRow);
-
-    const regenBtn = document.createElement("button");
-    regenBtn.type = "button";
-    regenBtn.className = "classroom-regen-btn";
-    regenBtn.textContent = "Regenerate code";
-    regenBtn.addEventListener("click", async () => {
-      regenBtn.disabled = true;
-      try {
-        const res = await fetch("/api/teacher/classrooms/regenerate-code", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ classroomId: classroom.id })
-        });
-        if (res.ok) {
-          loadClassrooms();
+      const link = `${window.location.origin}/join-student.html?code=${classroom.join_code}`;
+      const linkRow = document.createElement("div");
+      linkRow.className = "invite-link-row";
+      linkRow.innerHTML = `
+        <input type="text" readonly>
+        <button type="button">Copy link</button>
+      `;
+      linkRow.querySelector("input").value = link;
+      linkRow.querySelector("button").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        try {
+          await navigator.clipboard.writeText(link);
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = original; }, 1500);
+        } catch {
+          linkRow.querySelector("input").select();
         }
-      } finally {
-        regenBtn.disabled = false;
-      }
-    });
-    item.appendChild(regenBtn);
+      });
+      item.appendChild(linkRow);
+
+      const regenBtn = document.createElement("button");
+      regenBtn.type = "button";
+      regenBtn.className = "classroom-regen-btn";
+      regenBtn.textContent = "Regenerate code";
+      regenBtn.addEventListener("click", async () => {
+        regenBtn.disabled = true;
+        try {
+          const res = await fetch("/api/teacher/classrooms/regenerate-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ classroomId: classroom.id })
+          });
+          if (res.ok) {
+            loadClassrooms();
+          }
+        } finally {
+          regenBtn.disabled = false;
+        }
+      });
+      item.appendChild(regenBtn);
+
+      item.appendChild(buildCoTeacherSection(classroom));
+    }
 
     return item;
+  }
+
+  function buildCoTeacherSection(classroom) {
+    const section = document.createElement("div");
+    section.className = "coteacher-section";
+
+    const heading = document.createElement("p");
+    heading.className = "coteacher-heading";
+    heading.textContent = "Co-teachers";
+    section.appendChild(heading);
+
+    const listEl = document.createElement("div");
+    listEl.className = "coteacher-list";
+    listEl.innerHTML = '<p class="muted" style="font-size:0.8rem;">Loading&hellip;</p>';
+    section.appendChild(listEl);
+
+    async function loadCoTeachers() {
+      try {
+        const res = await fetch("/api/teacher/classrooms/coteachers?classroomId=" + classroom.id);
+        const data = await res.json().catch(() => ({}));
+        const rows = data.rows || [];
+        if (!res.ok) {
+          listEl.innerHTML = `<p class="error">${data.error || "Could not load co-teachers."}</p>`;
+          return;
+        }
+        if (rows.length === 0) {
+          listEl.innerHTML = '<p class="muted" style="font-size:0.8rem;">No co-teachers yet.</p>';
+          return;
+        }
+        listEl.innerHTML = "";
+        rows.forEach((teacher) => {
+          const row = document.createElement("div");
+          row.className = "coteacher-row";
+          row.innerHTML = `<span></span><button type="button" class="coteacher-remove-btn">Remove</button>`;
+          row.querySelector("span").textContent = teacher.display_name || teacher.username;
+          row.querySelector("button").addEventListener("click", async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+              const res2 = await fetch("/api/teacher/classrooms/remove-coteacher", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ classroomId: classroom.id, teacherId: teacher.id })
+              });
+              if (res2.ok) loadCoTeachers();
+            } finally {
+              btn.disabled = false;
+            }
+          });
+          listEl.appendChild(row);
+        });
+      } catch {
+        listEl.innerHTML = '<p class="error">Could not reach the server.</p>';
+      }
+    }
+
+    const addForm = document.createElement("div");
+    addForm.className = "coteacher-add-form";
+    addForm.innerHTML = `
+      <input type="email" placeholder="colleague@school.ac.uk" class="coteacher-email-input">
+      <button type="button">Add</button>
+    `;
+    const addErrorEl = document.createElement("p");
+    addErrorEl.className = "error";
+    addErrorEl.style.margin = "4px 0 0";
+
+    addForm.querySelector("button").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      addErrorEl.textContent = "";
+      const input = addForm.querySelector(".coteacher-email-input");
+      const email = input.value.trim();
+      if (!email) {
+        addErrorEl.textContent = "Enter an email address.";
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/teacher/classrooms/add-coteacher", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classroomId: classroom.id, email })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          input.value = "";
+          loadCoTeachers();
+        } else {
+          addErrorEl.textContent = data.error || "Could not add co-teacher.";
+        }
+      } catch {
+        addErrorEl.textContent = "Could not reach the server.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    section.appendChild(addForm);
+    section.appendChild(addErrorEl);
+
+    loadCoTeachers();
+
+    return section;
   }
 
   async function loadClassrooms() {

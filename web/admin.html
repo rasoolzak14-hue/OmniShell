@@ -200,7 +200,8 @@
   .breadcrumb a:hover {
     text-decoration: underline;
   }
-  #account-list {
+  #account-list,
+  #learner-list {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -369,12 +370,12 @@
 
 <main>
   <h1>OmniShell Admin</h1>
-  <p class="subtitle">Manage every school, headteacher, teacher, and student.</p>
+  <p class="subtitle">Manage every school, headteacher, teacher, student, and independent learner.</p>
 
   <section class="card">
     <h2>Admin token</h2>
     <div class="field-with-toggle">
-      <input id="admin-token" type="password" autocomplete="off" placeholder="Admin token">
+      <input id="admin-token" type="password" autocomplete="off" placeholder="Admin token" aria-label="Admin token">
       <button type="button" class="toggle-visibility" data-target="admin-token" aria-label="Show admin token"></button>
     </div>
     <div class="checkbox-row">
@@ -409,6 +410,17 @@
     </div>
     <div class="breadcrumb" id="breadcrumb"></div>
     <div id="roster-container">
+      <p class="muted">Enter your admin token above, then click Refresh.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="roster-header">
+      <h2 style="margin:0;">Independent learners</h2>
+      <button type="button" class="refresh-btn" id="learners-refresh-btn">Refresh</button>
+    </div>
+    <p class="muted" style="margin:0 0 12px;font-size:0.8rem;">People who signed up on their own, with no school. Newest first.</p>
+    <div id="learners-container">
       <p class="muted">Enter your admin token above, then click Refresh.</p>
     </div>
   </section>
@@ -615,13 +627,19 @@
     rosterContainer.appendChild(list);
   }
 
-  function buildAccountRow(account, level) {
+  // `ctx` lets the same row (rename / deactivate / delete) work in any list,
+  // not just the schools drill-down: it says how to refresh and where the
+  // list lives. "learner" rows are passwordless, so they get no password reset.
+  function buildAccountRow(account, level, ctx) {
+    ctx = ctx || { reload: loadRoster, container: rosterContainer };
+    const isLeaf = level === "student" || level === "learner";
+
     const item = document.createElement("li");
     item.className = "account-item";
 
     const row = document.createElement("div");
     row.className = "account-row";
-    if (level !== "student") row.classList.add("clickable");
+    if (!isLeaf) row.classList.add("clickable");
 
     const info = document.createElement("div");
     info.className = "account-info";
@@ -652,7 +670,7 @@
     resetBtn.type = "button";
     resetBtn.className = "action-btn";
     resetBtn.textContent = "Reset password";
-    row.appendChild(resetBtn);
+    if (level !== "learner") row.appendChild(resetBtn);
 
     const activeBtn = document.createElement("button");
     activeBtn.type = "button";
@@ -687,7 +705,7 @@
     const deleteConfirm = document.createElement("div");
     deleteConfirm.className = "delete-confirm";
     deleteConfirm.innerHTML = `
-      <p>Delete <strong>${nameEl.textContent}</strong>? This permanently removes their account${level !== "student" ? " and everything under it" : ""}.</p>
+      <p>Delete <strong>${nameEl.textContent}</strong>? This permanently removes their account${!isLeaf ? " and everything under it" : ""}.</p>
       <button type="button" class="delete-cancel-btn">Cancel</button>
       <button type="button" class="delete-confirm-btn">Delete</button>
     `;
@@ -714,7 +732,7 @@
           body: JSON.stringify({ accountId: account.id, active: !account.active })
         });
         if (res.ok) {
-          loadRoster();
+          ctx.reload();
         } else {
           activeBtn.disabled = false;
         }
@@ -806,8 +824,8 @@
         });
         if (res.ok) {
           item.remove();
-          if (document.querySelectorAll(".account-item").length === 0) {
-            rosterContainer.innerHTML = '<p class="empty">No accounts here yet.</p>';
+          if (ctx.container.querySelectorAll(".account-item").length === 0) {
+            ctx.container.innerHTML = '<p class="empty">No accounts here yet.</p>';
           }
         } else {
           btn.disabled = false;
@@ -817,7 +835,7 @@
       }
     }));
 
-    if (level !== "student") {
+    if (!isLeaf) {
       row.addEventListener("click", () => {
         if (level === "headteacher") {
           view = { level: "teachers", headteacherId: account.id, headteacherName: account.display_name || account.username };
@@ -842,6 +860,39 @@
   }
 
   document.getElementById("refresh-btn").addEventListener("click", loadRoster);
+
+  // ---------- independent learners ----------
+
+  const learnersContainer = document.getElementById("learners-container");
+
+  async function loadLearners() {
+    learnersContainer.innerHTML = '<p class="muted">Loading&hellip;</p>';
+    try {
+      const res = await adminFetch("/api/admin/learners");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        learnersContainer.innerHTML = `<p class="error">${data.error || "Could not load learners."}</p>`;
+        return;
+      }
+      const rows = data.rows || [];
+      if (rows.length === 0) {
+        learnersContainer.innerHTML = '<p class="empty">No independent learners yet.</p>';
+        return;
+      }
+      const list = document.createElement("ul");
+      list.id = "learner-list";
+      list.className = "account-list";
+      rows.forEach((account) => {
+        list.appendChild(buildAccountRow(account, "learner", { reload: loadLearners, container: learnersContainer }));
+      });
+      learnersContainer.innerHTML = "";
+      learnersContainer.appendChild(list);
+    } catch {
+      learnersContainer.innerHTML = '<p class="error">Could not reach the server.</p>';
+    }
+  }
+
+  document.getElementById("learners-refresh-btn").addEventListener("click", loadLearners);
 
   // ---------- login audit ----------
 
@@ -960,6 +1011,7 @@
   renderBreadcrumb();
   if (savedToken) {
     loadRoster();
+    loadLearners();
     loadAuditLog();
   }
 </script>

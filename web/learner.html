@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
+<title>OmniShell &mdash; Log in or create an account</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #d7dce3;
+    --text: #1b1f24;
+    --muted: #5b6470;
+    --accent: #0284c7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    margin: 24px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+    text-align: center;
+  }
+  .subtitle {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+  }
+  .tab {
+    flex: 1;
+    width: auto;
+    padding: 8px 10px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .tab.active {
+    background: var(--accent);
+    color: #0f1115;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .code-input {
+    text-align: center;
+    font-size: 1.4rem;
+    letter-spacing: 6px;
+    font-family: "SF Mono", Consolas, monospace;
+  }
+  button {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .text-link,
+  .text-link-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 400;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .text-link:hover,
+  .text-link-btn:hover {
+    color: var(--accent);
+  }
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  [hidden] {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+
+<button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
+
+<div class="card" id="request-card">
+  <h1>OmniShell</h1>
+  <p class="subtitle">For people learning on their own. No school needed.</p>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab active" id="tab-login" role="tab">Log in</button>
+    <button type="button" class="tab" id="tab-signup" role="tab">Create account</button>
+  </div>
+
+  <form id="request-form">
+    <div id="name-field" hidden>
+      <label for="display-name">Your name</label>
+      <input id="display-name" name="displayName" type="text" autocomplete="name" maxlength="80">
+    </div>
+
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" required>
+
+    <p class="error" id="request-error"></p>
+
+    <button type="submit" id="request-submit-btn">Send me a code</button>
+  </form>
+
+  <a class="text-link" href="/">&larr; Back to home</a>
+</div>
+
+<form class="card" id="verify-form" hidden>
+  <h1>Check your email</h1>
+  <p class="subtitle" id="verify-subtitle">Enter the 6-digit code we sent you.</p>
+
+  <label for="verify-code">Code</label>
+  <input id="verify-code" name="verifyCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="code-input" required>
+
+  <p class="error" id="verify-error"></p>
+
+  <button type="submit" id="verify-submit-btn">Continue</button>
+  <button type="button" class="text-link-btn" id="back-btn">Use a different email</button>
+</form>
+
+<script>
+  const themeToggleBtn = document.getElementById("theme-toggle");
+
+  function updateThemeToggleLabel() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+    themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  }
+
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("omnishell_theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("omnishell_theme", "light");
+    }
+    updateThemeToggleLabel();
+  });
+
+  updateThemeToggleLabel();
+
+  const requestCard = document.getElementById("request-card");
+  const requestForm = document.getElementById("request-form");
+  const requestErrorEl = document.getElementById("request-error");
+  const requestSubmitBtn = document.getElementById("request-submit-btn");
+  const nameField = document.getElementById("name-field");
+  const nameInput = document.getElementById("display-name");
+  const tabLogin = document.getElementById("tab-login");
+  const tabSignup = document.getElementById("tab-signup");
+
+  const verifyForm = document.getElementById("verify-form");
+  const verifySubtitleEl = document.getElementById("verify-subtitle");
+  const verifyErrorEl = document.getElementById("verify-error");
+  const verifySubmitBtn = document.getElementById("verify-submit-btn");
+
+  let mode = "login";
+  let pendingEmail = "";
+
+  function setMode(next) {
+    mode = next;
+    const signup = mode === "signup";
+    tabLogin.classList.toggle("active", !signup);
+    tabSignup.classList.toggle("active", signup);
+    nameField.hidden = !signup;
+    nameInput.required = signup;
+    requestErrorEl.textContent = "";
+  }
+
+  tabLogin.addEventListener("click", () => setMode("login"));
+  tabSignup.addEventListener("click", () => setMode("signup"));
+
+  if (new URLSearchParams(window.location.search).get("mode") === "signup") {
+    setMode("signup");
+  }
+
+  requestForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    requestErrorEl.textContent = "";
+    requestSubmitBtn.disabled = true;
+
+    const email = document.getElementById("email").value.trim();
+    const url = mode === "signup" ? "/api/learner/signup/request-code" : "/api/login/request-code";
+    const payload = mode === "signup" ? { email, displayName: nameInput.value } : { email };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        pendingEmail = email;
+        verifySubtitleEl.textContent = mode === "signup"
+          ? `We've sent a 6-digit code to ${email}.`
+          : `If ${email} has an account, we've sent it a code.`;
+        requestCard.hidden = true;
+        verifyForm.hidden = false;
+        document.getElementById("verify-code").focus();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        requestErrorEl.textContent = data.error || "Could not send a code.";
+      }
+    } catch {
+      requestErrorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      requestSubmitBtn.disabled = false;
+    }
+  });
+
+  verifyForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    verifyErrorEl.textContent = "";
+    verifySubmitBtn.disabled = true;
+
+    const code = document.getElementById("verify-code").value.trim();
+    const url = mode === "signup" ? "/api/learner/signup/verify-code" : "/api/login/verify-code";
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail, code })
+      });
+
+      if (res.ok) {
+        window.location.href = "/";
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      verifyErrorEl.textContent = data.error || "Could not verify that code.";
+    } catch {
+      verifyErrorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      verifySubmitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById("back-btn").addEventListener("click", () => {
+    verifyForm.hidden = true;
+    requestCard.hidden = false;
+    verifyErrorEl.textContent = "";
+    document.getElementById("verify-code").value = "";
+  });
+</script>
+</body>
+</html>

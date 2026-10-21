@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
+<title>OmniShell &mdash; Sign in with email</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #d7dce3;
+    --text: #1b1f24;
+    --muted: #5b6470;
+    --accent: #0284c7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .login-card {
+    width: 100%;
+    max-width: 340px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    margin: 24px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.3rem;
+    text-align: center;
+  }
+  .subtitle {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .code-input {
+    text-align: center;
+    font-size: 1.4rem;
+    letter-spacing: 6px;
+    font-family: "SF Mono", Consolas, monospace;
+  }
+  button {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    margin: -8px 0 16px;
+    min-height: 1em;
+  }
+  .login-link,
+  .text-link-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .login-link:hover,
+  .text-link-btn:hover {
+    color: var(--accent);
+  }
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  [hidden] {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+
+<button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
+
+<form class="login-card" id="request-form">
+  <h1>Sign in</h1>
+  <p class="subtitle">Teachers and students sign in with their school email.</p>
+
+  <label for="email">School email</label>
+  <input id="email" name="email" type="email" autocomplete="email" required>
+
+  <p class="error" id="request-error"></p>
+
+  <button type="submit" id="request-submit-btn">Send sign-in code</button>
+  <a class="login-link" href="/login.html">Headteacher or admin? Sign in here instead</a>
+</form>
+
+<form class="login-card" id="verify-form" hidden>
+  <h1>Check your email</h1>
+  <p class="subtitle" id="verify-subtitle">Enter the 6-digit code we sent you.</p>
+
+  <label for="verify-code">Sign-in code</label>
+  <input id="verify-code" name="verifyCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="code-input" required>
+
+  <p class="error" id="verify-error"></p>
+
+  <button type="submit" id="verify-submit-btn">Sign in</button>
+  <button type="button" class="text-link-btn" id="back-btn">Use a different email</button>
+</form>
+
+<script>
+  const themeToggleBtn = document.getElementById("theme-toggle");
+
+  function updateThemeToggleLabel() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+    themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  }
+
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("omnishell_theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("omnishell_theme", "light");
+    }
+    updateThemeToggleLabel();
+  });
+
+  updateThemeToggleLabel();
+
+  const requestForm = document.getElementById("request-form");
+  const requestErrorEl = document.getElementById("request-error");
+  const requestSubmitBtn = document.getElementById("request-submit-btn");
+
+  const verifyForm = document.getElementById("verify-form");
+  const verifySubtitleEl = document.getElementById("verify-subtitle");
+  const verifyErrorEl = document.getElementById("verify-error");
+  const verifySubmitBtn = document.getElementById("verify-submit-btn");
+
+  let pendingEmail = "";
+
+  requestForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    requestErrorEl.textContent = "";
+    requestSubmitBtn.disabled = true;
+
+    const email = document.getElementById("email").value;
+
+    try {
+      const res = await fetch("/api/login/request-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+
+      if (res.ok) {
+        pendingEmail = email;
+        verifySubtitleEl.textContent = `If ${email} has an account, we've sent it a code.`;
+        requestForm.hidden = true;
+        verifyForm.hidden = false;
+        document.getElementById("verify-code").focus();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        requestErrorEl.textContent = data.error || "Could not send a sign-in code.";
+      }
+    } catch {
+      requestErrorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      requestSubmitBtn.disabled = false;
+    }
+  });
+
+  verifyForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    verifyErrorEl.textContent = "";
+    verifySubmitBtn.disabled = true;
+
+    const code = document.getElementById("verify-code").value;
+
+    try {
+      const res = await fetch("/api/login/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail, code })
+      });
+
+      if (res.ok) {
+        window.location.href = "/";
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      verifyErrorEl.textContent = data.error || "Could not verify that code.";
+    } catch {
+      verifyErrorEl.textContent = "Could not reach the server. Try again.";
+    } finally {
+      verifySubmitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById("back-btn").addEventListener("click", () => {
+    verifyForm.hidden = true;
+    requestForm.hidden = false;
+    verifyErrorEl.textContent = "";
+    document.getElementById("verify-code").value = "";
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
+<title>OmniShell &mdash; Find the command you forgot</title>
+<meta name="description" content="OmniShell is a searchable command reference with examples and quizzes for Linux, PowerShell, Python, JavaScript, Java, C++, SQL and Git. For schools and independent learners.">
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+    --on-accent: #0f1115;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #d7dce3;
+    --text: #1b1f24;
+    --muted: #5b6470;
+    --accent: #0284c7;
+    --on-accent: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .topbar {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .brand {
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-size: 1.1rem;
+  }
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 20px 64px;
+  }
+  .hero {
+    text-align: center;
+    padding: 40px 0 32px;
+  }
+  .hero h1 {
+    margin: 0 0 12px;
+    font-size: clamp(1.9rem, 5vw, 2.8rem);
+    line-height: 1.15;
+  }
+  .hero p {
+    margin: 0 auto 28px;
+    max-width: 560px;
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+  .btn {
+    display: inline-block;
+    min-width: 170px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    border: 1px solid var(--accent);
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent);
+  }
+  .btn:hover {
+    filter: brightness(1.1);
+  }
+  .cta-note {
+    margin-top: 14px;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .cta-note a {
+    color: var(--accent);
+  }
+  .demo {
+    margin: 36px auto 0;
+    max-width: 560px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    text-align: left;
+    font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+    font-size: 0.9rem;
+  }
+  .demo .q {
+    color: var(--muted);
+  }
+  .demo .a {
+    color: var(--accent);
+  }
+  h2 {
+    margin: 48px 0 16px;
+    font-size: 1.4rem;
+    text-align: center;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .card h3 {
+    margin: 0 0 6px;
+    font-size: 1.02rem;
+  }
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  .routes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .route h3 {
+    margin: 0 0 8px;
+    font-size: 1.1rem;
+  }
+  .route ul {
+    margin: 0 0 16px;
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  .route li {
+    margin-bottom: 4px;
+  }
+  .langs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .lang {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px 20px 40px;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">OmniShell</span>
+  <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
+</div>
+
+<main>
+  <section class="hero">
+    <h1>Forgot the command?<br>Find it in seconds.</h1>
+    <p>OmniShell is a searchable command reference with real examples and quizzes, so the commands you look up are the ones you remember.</p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/login.html">School Login</a>
+      <a class="btn btn-secondary" href="/learner.html">Login</a>
+    </div>
+    <p class="cta-note">Learning on your own? <a href="/learner.html?mode=signup">Create an account</a></p>
+
+    <div class="demo" aria-hidden="true">
+      <div class="q">$ search: "move directory"</div>
+      <div class="a">cd &lt;dir&gt;  &rarr; Change into the specified directory</div>
+      <div class="q">&nbsp;&nbsp;e.g. cd Downloads</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What OmniShell does</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Search the way you think</h3>
+        <p>Type what you want to do, like "move directory" or "create list", and OmniShell finds the right command. No need to remember the exact name.</p>
+      </div>
+      <div class="card">
+        <h3>Examples for every command</h3>
+        <p>Click any command to see it in use, for example <code>mkdir Downloads</code> or <code>mkdir Documents</code>, not just a dry description.</p>
+      </div>
+      <div class="card">
+        <h3>Quizzes that teach</h3>
+        <p>Test yourself on any language. When you finish, you see exactly which answers you missed, and the right ones, so you can learn from them.</p>
+      </div>
+      <div class="card">
+        <h3>Eight languages in one place</h3>
+        <p>One tool for the commands and syntax you switch between every day.</p>
+        <div class="langs">
+          <span class="lang">Linux</span><span class="lang">PowerShell</span><span class="lang">Python</span><span class="lang">JavaScript</span><span class="lang">Java</span><span class="lang">C++</span><span class="lang">SQL</span><span class="lang">Git</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Choose how you use it</h2>
+    <div class="routes">
+      <div class="card route">
+        <h3>For schools</h3>
+        <ul>
+          <li>Headteachers invite their teachers</li>
+          <li>Teachers set up classes and add students with a class code</li>
+          <li>Teachers see every student's quiz results in one place</li>
+        </ul>
+        <a class="btn btn-primary" href="/login.html">School Login</a>
+      </div>
+      <div class="card route">
+        <h3>For independent learners</h3>
+        <ul>
+          <li>No school or teacher needed</li>
+          <li>Sign up with just your email, with no password to remember</li>
+          <li>The full reference and every quiz, at your own pace</li>
+        </ul>
+        <a class="btn btn-secondary" href="/learner.html?mode=signup">Create an account</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>&copy; OmniShell</footer>
+
+<script>
+  const themeToggleBtn = document.getElementById("theme-toggle");
+
+  function updateThemeToggleLabel() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+    themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
+  }
+
+  themeToggleBtn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("omnishell_theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("omnishell_theme", "light");
+    }
+    updateThemeToggleLabel();
+  });
+
+  updateThemeToggleLabel();
+</script>
+</body>
+</html>

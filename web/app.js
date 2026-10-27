@@ -20,7 +20,9 @@ const themeToggleBtn = document.getElementById("theme-toggle");
 
 function updateThemeToggleLabel() {
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
-  themeToggleBtn.textContent = isLight ? "🌙" : "☀️";
+  // Written as escape codes (moon, sun) so they show correctly whatever text
+  // encoding the file ends up being served with.
+  themeToggleBtn.textContent = isLight ? "\u{1F319}" : "\u{2600}\u{FE0F}";
   themeToggleBtn.setAttribute("aria-label", isLight ? "Switch to dark theme" : "Switch to light theme");
 }
 
@@ -97,7 +99,7 @@ async function loadSyllabusProvider(key, title) {
   const topics = await res.json();
   const mapped = topics.map((t) => ({
     command: t.title,
-    description: t.section + " — " + t.explanation,
+    description: t.section + " \u{2014} " + t.explanation,
     examples: t.code ? [t.code] : []
   }));
   showProviderView("syllabus_" + key, title, mapped);
@@ -183,7 +185,7 @@ function render(list) {
 
     const arrow = document.createElement("span");
     arrow.className = "cmd-desc";
-    arrow.textContent = "→ " + c.description;
+    arrow.textContent = "\u{2192} " + c.description;
 
     row.append(index, cmdText, arrow);
     li.appendChild(row);
@@ -193,7 +195,7 @@ function render(list) {
 
       const caret = document.createElement("span");
       caret.className = "cmd-caret";
-      caret.textContent = "▸";
+      caret.textContent = "\u{25B8}";
       row.appendChild(caret);
 
       const examplesEl = document.createElement("div");
@@ -217,7 +219,7 @@ function render(list) {
       row.addEventListener("click", () => {
         examplesEl.hidden = !examplesEl.hidden;
         row.classList.toggle("expanded", !examplesEl.hidden);
-        caret.textContent = examplesEl.hidden ? "▸" : "▾";
+        caret.textContent = examplesEl.hidden ? "\u{25B8}" : "\u{25BE}";
       });
     }
 
@@ -308,6 +310,50 @@ async function initHomeLayout() {
   extraHeading.hidden = false;
   await loadSyllabusCard();
 }
+
+// Sticky header: the bar is fixed to the top of the screen and shrinks
+// smoothly over the first SHRINK_DISTANCE pixels of scrolling (title gets
+// smaller, subtitle fades out, bar tightens up). The <header> element is only
+// a spacer that keeps the full-size height, so nothing below it jumps.
+const SHRINK_DISTANCE = 90;
+const siteHeader = document.getElementById("site-header");
+const headerBar = siteHeader.querySelector(".header-bar");
+
+function setHeaderProgress(p) {
+  headerBar.style.setProperty("--p", p.toFixed(3));
+  headerBar.classList.toggle("scrolled", p > 0.02);
+  headerBar.classList.toggle("compact", p >= 0.98);
+}
+
+function measureHeaderSpacer() {
+  const current = parseFloat(headerBar.style.getPropertyValue("--p")) || 0;
+  setHeaderProgress(0);
+  siteHeader.style.height = headerBar.offsetHeight + "px";
+  setHeaderProgress(current);
+}
+
+let headerFramePending = false;
+function updateHeaderOnScroll() {
+  if (headerFramePending) return;
+  headerFramePending = true;
+  requestAnimationFrame(() => {
+    headerFramePending = false;
+    setHeaderProgress(Math.min(1, Math.max(0, window.scrollY / SHRINK_DISTANCE)));
+  });
+}
+
+window.addEventListener("scroll", updateHeaderOnScroll, { passive: true });
+window.addEventListener("resize", () => {
+  measureHeaderSpacer();
+  updateHeaderOnScroll();
+});
+// The size of the full header depends on the web font, so measure again once
+// everything has loaded.
+measureHeaderSpacer();
+window.addEventListener("load", () => {
+  measureHeaderSpacer();
+  updateHeaderOnScroll();
+});
 
 loadSynonyms();
 initHomeLayout();

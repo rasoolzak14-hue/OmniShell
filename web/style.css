@@ -55,23 +55,54 @@ body {
   color: var(--text);
 }
 
-header {
-  position: relative;
-  padding: 32px 16px 16px;
+/* The header is a fixed bar that stays on screen while the page scrolls.
+   app.js sets --p on .header-bar from 0 (top of page, full size) to 1
+   (scrolled, compact), and everything below shrinks in step with it. The
+   <header> itself is just a spacer holding the full-size height, so the
+   page below doesn't jump around as the bar shrinks. */
+.header-bar {
+  --p: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--bg);
   text-align: center;
+  padding: calc(32px - 20px * var(--p)) 16px calc(16px - 4px * var(--p));
+  border-bottom: 1px solid transparent;
+}
+
+.header-bar.scrolled {
+  border-bottom-color: var(--border);
 }
 
 .header-links {
   position: absolute;
-  top: 16px;
+  top: calc(16px - 8px * var(--p));
   right: 16px;
   display: flex;
   gap: 8px;
 }
 
 @media (max-width: 480px) {
-  header {
-    padding-top: 72px;
+  .header-bar {
+    padding-top: calc(72px - 60px * var(--p));
+  }
+
+  /* Once fully shrunk, the title sits on the left so it doesn't run into the
+     buttons on the right, and is a touch smaller than on larger screens. */
+  .header-bar.compact {
+    text-align: left;
+  }
+
+  .header-bar h1 {
+    font-size: calc(2rem - 1.1rem * var(--p));
+    letter-spacing: calc(1px - 0.5px * var(--p));
+  }
+
+  .header-links {
+    gap: 6px;
   }
 }
 
@@ -96,11 +127,16 @@ header {
 header h1 {
   margin: 0;
   letter-spacing: 1px;
+  font-size: calc(2rem - 0.85rem * var(--p));
+  line-height: 1.2;
 }
 
 .subtitle {
   color: var(--muted);
-  margin: 4px 0 0;
+  margin: calc(4px * (1 - var(--p))) 0 0;
+  overflow: hidden;
+  max-height: calc(3.2rem * (1 - var(--p)));
+  opacity: calc(1 - var(--p) * 1.8);
 }
 
 main {

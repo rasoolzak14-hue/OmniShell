@@ -49,6 +49,7 @@ const commandList = document.getElementById("command-list");
 const backBtn = document.getElementById("back-btn");
 const roleLink = document.getElementById("role-link");
 
+let quizLinkEnabled = false;   // true for students and independent learners (see loadRoleLink)
 let synonyms = {};        // { providerId: { normalizedPhrase: canonicalCommand } }
 let activeProviderId = "";
 let commands = [];        // currently loaded provider's commands
@@ -77,9 +78,27 @@ async function loadSynonyms() {
   }
 }
 
+// Points the header's quiz button at the quiz for whatever the learner is
+// looking at (e.g. Linux -> /quiz.html?provider=linux), or back at the quiz
+// picker when they're not inside a language. Does nothing for teachers and
+// headteachers, whose header button goes to their dashboard instead.
+function setQuizLink(providerId, title) {
+  if (!quizLinkEnabled) return;
+  if (providerId) {
+    roleLink.href = "/quiz.html?provider=" + encodeURIComponent(providerId);
+    // Short names read nicely ("Linux Quiz"); long ones (exam boards) would
+    // crowd the header on a phone, so they keep the generic wording.
+    roleLink.textContent = title && title.length <= 10 ? title + " Quiz" : "Take a Quiz";
+  } else {
+    roleLink.href = "/quiz.html";
+    roleLink.textContent = "Take a Quiz";
+  }
+}
+
 function showProviderView(providerId, title, commandsArray) {
   commands = commandsArray;
   activeProviderId = providerId;
+  setQuizLink(providerId, title);
   providerTitle.textContent = title;
   providerSelect.hidden = true;
   providerView.hidden = false;
@@ -242,6 +261,7 @@ backBtn.addEventListener("click", () => {
   providerSelect.hidden = false;
   activeProviderId = "";
   commands = [];
+  setQuizLink(null);
 });
 
 searchInput.addEventListener("input", () => {
@@ -283,6 +303,7 @@ async function loadRoleLink() {
       roleLink.textContent = "Take a Quiz";
       roleLink.href = "/quiz.html";
       roleLink.hidden = false;
+      quizLinkEnabled = true;
     }
     return data.role;
   } catch (e) {

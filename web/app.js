@@ -3,10 +3,32 @@
 
 const DATA_DIR = "data/";
 
+// `reviewed` is when we last checked the topics against the exam board's own
+// published specification, and `basedOn` says which version that was. Update
+// both whenever a syllabus file is checked or changed.
+const SYLLABUS_REVIEWED = "October 2026";
 const SYLLABUS_META = {
-  aqa_gcse_cs: { label: "AQA GCSE Computer Science", hint: "8525 specification" },
-  ocr_gcse_cs: { label: "OCR GCSE Computer Science", hint: "J277 specification" },
-  edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", hint: "1CP2 specification" }
+  aqa_gcse_cs: {
+    label: "AQA GCSE Computer Science",
+    hint: "8525 specification, updated for 2027 exams",
+    basedOn: "AQA 8525, updated for exams from summer 2027"
+  },
+  ocr_gcse_cs: {
+    label: "OCR GCSE Computer Science",
+    hint: "J277 specification, version 3.1 (2026)",
+    basedOn: "OCR J277, specification version 3.1 (2026)"
+  },
+  edexcel_gcse_cs: {
+    label: "Edexcel/Pearson GCSE Computer Science",
+    hint: "1CP2 specification",
+    basedOn: "Pearson Edexcel 1CP2, specification Issue 1 (January 2020)"
+  },
+  // For independent learners who haven't picked a board: the topics from all three.
+  general_cs: {
+    label: "General Computer Science",
+    hint: "A mixture of AQA, OCR and Edexcel",
+    basedOn: "a combination of the AQA 8525 (2027 content), OCR J277 (version 3.1) and Pearson Edexcel 1CP2 specifications"
+  }
 };
 
 // OCR's practical component is taught in Python at almost every UK school,
@@ -48,6 +70,7 @@ const resultCount = document.getElementById("result-count");
 const commandList = document.getElementById("command-list");
 const backBtn = document.getElementById("back-btn");
 const roleLink = document.getElementById("role-link");
+const syllabusNote = document.getElementById("syllabus-note");
 
 let quizLinkEnabled = false;   // true for students and independent learners (see loadRoleLink)
 let synonyms = {};        // { providerId: { normalizedPhrase: canonicalCommand } }
@@ -99,6 +122,7 @@ function showProviderView(providerId, title, commandsArray) {
   commands = commandsArray;
   activeProviderId = providerId;
   setQuizLink(providerId, title);
+  syllabusNote.hidden = true;   // only syllabus lists show the "based on" note (see loadSyllabusProvider)
   providerTitle.textContent = title;
   providerSelect.hidden = true;
   providerView.hidden = false;
@@ -122,6 +146,14 @@ async function loadSyllabusProvider(key, title) {
     examples: t.code ? [t.code] : []
   }));
   showProviderView("syllabus_" + key, title, mapped);
+
+  const meta = SYLLABUS_META[key];
+  if (meta) {
+    syllabusNote.textContent =
+      `Based on ${meta.basedOn}. Last reviewed ${SYLLABUS_REVIEWED}. ` +
+      "Always check your exam board's official specification for the definitive list of what you need to know.";
+    syllabusNote.hidden = false;
+  }
 }
 
 async function loadSyllabusCard() {
@@ -138,9 +170,11 @@ async function loadSyllabusCard() {
     card.innerHTML = `
       <span class="provider-name"></span>
       <span class="provider-hint"></span>
+      <span class="provider-hint provider-reviewed"></span>
     `;
     card.querySelector(".provider-name").textContent = meta.label;
     card.querySelector(".provider-hint").textContent = meta.hint;
+    card.querySelector(".provider-reviewed").textContent = "Last reviewed " + SYLLABUS_REVIEWED;
 
     const extraHeading = document.getElementById("extra-heading");
     extraHeading.before(card);
@@ -262,6 +296,7 @@ backBtn.addEventListener("click", () => {
   activeProviderId = "";
   commands = [];
   setQuizLink(null);
+  syllabusNote.hidden = true;
 });
 
 searchInput.addEventListener("input", () => {
@@ -284,12 +319,28 @@ function renderTrialBanner(plan) {
   banner.hidden = false;
 }
 
+// Shows the signed-in person's name and initial in the top-right profile chip.
+// Accounts that sign in by email have their address as the username, so we
+// show just the part before the @ when there's no display name.
+function renderProfileChip(data) {
+  const chip = document.getElementById("profile-link");
+  if (!chip) return;
+  const raw = String(data.displayName || data.username || "").trim();
+  if (!raw) return;
+  const shown = raw.includes("@") ? raw.split("@")[0] : raw;
+  document.getElementById("profile-name").textContent = shown;
+  document.getElementById("profile-avatar").textContent = shown.charAt(0).toUpperCase();
+  chip.title = "View your profile";
+  chip.hidden = false;
+}
+
 // Returns the signed-in user's role, or null if it couldn't be determined.
 async function loadRoleLink() {
   try {
     const res = await fetch("/api/me");
     if (!res.ok) return null;
     const data = await res.json();
+    renderProfileChip(data);
     renderTrialBanner(data.plan);
     if (data.role === "headteacher") {
       roleLink.textContent = "Headteacher Dashboard";
@@ -321,6 +372,12 @@ async function initHomeLayout() {
   const extraHeading = document.getElementById("extra-heading");
 
   if (role === "independent") {
+    // An independent learner may have picked an exam board when they signed up
+    // (or since, on their profile). If so, show that board's syllabus above the
+    // languages; if they chose "no exam board", they only see the languages.
+    await loadSyllabusCard();
+    const hasBoard = !!document.querySelector(".provider-card[data-syllabus]");
+    document.getElementById("syllabus-heading").hidden = !hasBoard;
     extraHeading.textContent = "Languages";
     extraHeading.hidden = false;
     return;

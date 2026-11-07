@@ -20,6 +20,13 @@
       <a id="role-link" hidden></a>
       <a id="logout-link" href="/api/logout">Log out</a>
     </div>
+    <!-- Filled in by app.js once /api/me says who is logged in. -->
+    <div class="header-profile">
+      <a id="profile-link" class="profile-chip" href="/profile.html" aria-label="View your profile" hidden>
+        <span class="profile-avatar" id="profile-avatar" aria-hidden="true"></span>
+        <span class="profile-name" id="profile-name"></span>
+      </a>
+    </div>
     <h1>OmniShell</h1>
     <p class="subtitle">Search commands for Linux, PowerShell, Python, and more</p>
   </div>
@@ -79,6 +86,9 @@
       <button id="back-btn">&larr; Back</button>
       <h2 id="provider-title"></h2>
     </div>
+
+    <!-- Only shown on a syllabus topic list: which spec it's based on and when it was last checked. -->
+    <p id="syllabus-note" class="syllabus-note" hidden></p>
 
     <label for="search-input" class="sr-only">Search by keyword</label>
     <input id="search-input" type="text" placeholder="Search by keyword (e.g. &quot;move directory&quot;)...">

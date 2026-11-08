@@ -159,6 +159,37 @@
     color: var(--accent);
     margin: 8px 0 16px;
   }
+  .new-badges {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+  .new-badges h2 {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    color: var(--accent);
+  }
+  .new-badge {
+    display: inline-block;
+    width: 130px;
+    margin: 0 8px 8px;
+    vertical-align: top;
+  }
+  .new-badge svg {
+    width: 76px;
+    height: 76px;
+    display: block;
+    margin: 0 auto 4px;
+  }
+  .new-badge .nb-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .new-badge .nb-desc {
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
   .review {
     margin-top: 24px;
   }
@@ -217,6 +248,7 @@
   </div>
 </main>
 
+<script src="badges.js"></script>
 <script>
   const themeToggleBtn = document.getElementById("theme-toggle");
 
@@ -253,7 +285,8 @@
   const SYLLABUS_META = {
     aqa_gcse_cs: { label: "AQA GCSE Computer Science", file: "syllabus_aqa_gcse_cs.json" },
     ocr_gcse_cs: { label: "OCR GCSE Computer Science", file: "syllabus_ocr_gcse_cs.json" },
-    edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", file: "syllabus_edexcel_gcse_cs.json" }
+    edexcel_gcse_cs: { label: "Edexcel/Pearson GCSE Computer Science", file: "syllabus_edexcel_gcse_cs.json" },
+    general_cs: { label: "General Computer Science (all exam boards)", file: "syllabus_general_cs.json" }
   };
   // OCR (only, for now) also pulls Python out of "Extra learning material"
   // and into "Syllabus" alongside the topic quiz — mirrors index.html.
@@ -417,33 +450,40 @@
 
       let score = 0;
       const mistakes = [];
+      const correctCommands = [];
       questions.forEach((q, qi) => {
         const selected = form.querySelector(`input[name="q${qi}"]:checked`);
         const selectedText = selected ? q.options[Number(selected.value)] : null;
         if (selectedText === q.correct) {
           score++;
+          correctCommands.push(q.question);
         } else {
           mistakes.push({ question: q.question, yourAnswer: selectedText, correct: q.correct });
         }
       });
 
+      let newBadges = [];
       try {
-        await fetch("/api/quiz/attempts", {
+        const res = await fetch("/api/quiz/attempts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provider: provider.id, score, total: questions.length })
+          body: JSON.stringify({ provider: provider.id, score, total: questions.length, correctCommands })
         });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (Array.isArray(data.newBadges)) newBadges = data.newBadges;
+        }
       } catch {
         // Show the result either way — the attempt not saving isn't worth blocking on.
       }
 
-      showResult(provider, score, questions.length, mistakes);
+      showResult(provider, score, questions.length, mistakes, newBadges);
     });
 
     content.appendChild(form);
   }
 
-  function showResult(provider, score, total, mistakes) {
+  function showResult(provider, score, total, mistakes, newBadges) {
     content.innerHTML = "";
     const card = document.createElement("div");
     card.className = "result-card";
@@ -456,6 +496,36 @@
     retryBtn.textContent = "Try another quiz";
     retryBtn.style.color = "var(--accent)";
     card.appendChild(retryBtn);
+
+    // Any badges this quiz just earned.
+    const earned = (newBadges || []).map((id) => OmniBadges.get(id)).filter(Boolean);
+    if (earned.length > 0) {
+      const box = document.createElement("div");
+      box.className = "new-badges";
+      const h = document.createElement("h2");
+      h.textContent = earned.length === 1 ? "You earned a new badge!" : `You earned ${earned.length} new badges!`;
+      box.appendChild(h);
+      earned.forEach((b) => {
+        const item = document.createElement("div");
+        item.className = "new-badge";
+        item.innerHTML = OmniBadges.svg(b.id, false);
+        const n = document.createElement("div");
+        n.className = "nb-name";
+        n.textContent = b.name;
+        const d = document.createElement("div");
+        d.className = "nb-desc";
+        d.textContent = b.description;
+        item.appendChild(n);
+        item.appendChild(d);
+        box.appendChild(item);
+      });
+      const link = document.createElement("a");
+      link.href = "/profile.html";
+      link.textContent = "See all your badges";
+      link.style.cssText = "display:block;margin-top:6px;color:var(--accent);font-size:0.9rem;";
+      box.appendChild(link);
+      card.appendChild(box);
+    }
     content.appendChild(card);
 
     if (mistakes && mistakes.length > 0) {

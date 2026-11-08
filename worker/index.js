@@ -90,7 +90,7 @@ const TEACHER_INVITE_TTL_MINUTES = 7 * 24 * 60;
 // rather than throwing, so a misconfigured or not-yet-set-up provider never
 // breaks the request that triggered it — the code still gets created and
 // stored, it just won't reach an inbox until RESEND_API_KEY is set.
-async function sendEmail(env, { to, subject, text }) {
+async function sendEmail(env, { to, subject, text, html }) {
   if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
     console.error(`sendEmail: no email provider configured — would have sent to ${to}: ${subject}`);
     return false;
@@ -103,7 +103,9 @@ async function sendEmail(env, { to, subject, text }) {
         "Authorization": `Bearer ${env.RESEND_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject, text })
+      // `text` is always sent alongside `html` so email apps that don't show
+      // HTML still get a readable message (and it helps spam filters).
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject, text, ...(html ? { html } : {}) })
     });
     if (!res.ok) {
       console.error(`sendEmail: provider returned ${res.status} for ${to}`);
@@ -116,11 +118,94 @@ async function sendEmail(env, { to, subject, text }) {
   }
 }
 
+// Set this to the public address of your logo image once you have one (for
+// example "https://omni-shell.com/email-logo.png" — the file must be reachable
+// without logging in, so it has to be added to the Worker's public-file
+// allow-list). While it's null the emails show a text "OmniShell" wordmark
+// instead, which looks fine and works in every email app.
+const EMAIL_LOGO_URL = null;
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Builds the HTML version of an OmniShell email. Uses old-fashioned table
+// layout and inline styles on purpose — it's the only thing every email app
+// (Gmail, Outlook, Apple Mail) renders reliably. Anything that's passed in is
+// escaped, so a name or address can't inject markup.
+//   heading, intro  - the title and the sentence under it
+//   code            - optional big 6-digit code
+//   buttonText/Url  - optional call-to-action button (used for invites)
+//   note            - optional small print under the main content
+function renderEmailHtml({ preheader, heading, intro, code, buttonText, buttonUrl, note }) {
+  const logo = EMAIL_LOGO_URL
+    ? `<img src="${escapeHtml(EMAIL_LOGO_URL)}" alt="OmniShell" height="36" style="display:block;border:0;height:36px;">`
+    : `<span style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:700;letter-spacing:1px;color:#0f172a;"><span style="display:inline-block;background:#0284c7;color:#ffffff;border-radius:6px;padding:2px 8px;margin-right:8px;font-family:Consolas,Menlo,monospace;font-size:18px;">&gt;_</span>OmniShell</span>`;
+
+  const codeBlock = code
+    ? `<tr><td align="center" style="padding:8px 0 20px;">
+         <div style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:14px 28px;font-family:Consolas,Menlo,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:#0f172a;">${escapeHtml(code)}</div>
+       </td></tr>`
+    : "";
+
+  const buttonBlock = buttonUrl
+    ? `<tr><td align="center" style="padding:8px 0 20px;">
+         <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#0284c7;border-radius:8px;">
+           <a href="${escapeHtml(buttonUrl)}" style="display:inline-block;padding:13px 26px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;">${escapeHtml(buttonText || "Open")}</a>
+         </td></tr></table>
+       </td></tr>
+       <tr><td align="center" style="padding:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;word-break:break-all;">If the button doesn't work, copy this address into your browser:<br>${escapeHtml(buttonUrl)}</td></tr>`
+    : "";
+
+  const noteBlock = note
+    ? `<tr><td style="padding:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#64748b;">${escapeHtml(note)}</td></tr>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>${escapeHtml(heading)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#f4f6f9;">${escapeHtml(preheader || heading)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f6f9;">
+  <tr><td align="center" style="padding:32px 12px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+      <tr><td align="center" style="padding:0 0 20px;">${logo}</td></tr>
+      <tr><td style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:32px 28px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#0f172a;padding:0 0 10px;">${escapeHtml(heading)}</td></tr>
+          <tr><td style="font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.55;color:#334155;padding:0 0 18px;">${escapeHtml(intro)}</td></tr>
+          ${codeBlock}
+          ${buttonBlock}
+          ${noteBlock}
+        </table>
+      </td></tr>
+      <tr><td align="center" style="padding:18px 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#94a3b8;">
+        OmniShell will never ask for your password by email.<br>omni-shell.com
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
+
 // Shared by every request-code / invite endpoint: creates and emails a fresh
 // code, throttling repeat requests for the same email+purpose so "Resend"
 // can't be used to spam someone's inbox. Defaults to a short numeric OTP;
 // pass `code`/`ttlMinutes` to issue a long-lived magic-link token instead.
-async function issueEmailCode(env, { email, purpose, payload, subject, bodyText, code, ttlMinutes }) {
+// `bodyHtml` is optional: when given, the email is sent as a styled HTML
+// message (with `bodyText` still included as the plain-text fallback).
+async function issueEmailCode(env, { email, purpose, payload, subject, bodyText, bodyHtml, code, ttlMinutes }) {
   const recent = await env.DB
     .prepare("SELECT created_at FROM email_codes WHERE email = ? AND purpose = ? ORDER BY created_at DESC LIMIT 1")
     .bind(email, purpose)
@@ -152,7 +237,12 @@ async function issueEmailCode(env, { email, purpose, payload, subject, bodyText,
     .bind(email, finalCode, purpose, payload ? JSON.stringify(payload) : null, expiresAt, new Date().toISOString())
     .run();
 
-  await sendEmail(env, { to: email, subject, text: bodyText(finalCode) });
+  await sendEmail(env, {
+    to: email,
+    subject,
+    text: bodyText(finalCode),
+    html: bodyHtml ? bodyHtml(finalCode) : undefined
+  });
 
   return { ok: true };
 }
@@ -437,7 +527,15 @@ async function handleLoginRequestCode(request, env) {
       payload: null,
       subject: "Your OmniShell sign-in code",
       bodyText: (verificationCode) =>
-        `Your OmniShell sign-in code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`
+        `Your OmniShell sign-in code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`,
+      bodyHtml: (verificationCode) =>
+        renderEmailHtml({
+          preheader: `Your sign-in code is ${verificationCode}`,
+          heading: "Your sign-in code",
+          intro: "Enter this code on the OmniShell sign-in page to log in.",
+          code: verificationCode,
+          note: `This code expires in ${EMAIL_CODE_TTL_MINUTES} minutes. If you didn't ask for it, you can safely ignore this email.`
+        })
     });
   }
 
@@ -788,6 +886,11 @@ async function handleAdminDeleteAccount(request, env) {
       )
       .bind(accountId)
       .run();
+    await deleteBadgeData(
+      env,
+      "SELECT id FROM schools WHERE role = 'student' AND teacher_id IN (SELECT id FROM schools WHERE role = 'teacher' AND teacher_id = ?)",
+      accountId
+    );
     await env.DB
       .prepare(
         `DELETE FROM schools WHERE role = 'student' AND teacher_id IN (
@@ -802,9 +905,11 @@ async function handleAdminDeleteAccount(request, env) {
       .prepare("DELETE FROM quiz_attempts WHERE student_id IN (SELECT id FROM schools WHERE teacher_id = ? AND role = 'student')")
       .bind(accountId)
       .run();
+    await deleteBadgeData(env, "SELECT id FROM schools WHERE teacher_id = ? AND role = 'student'", accountId);
     await env.DB.prepare("DELETE FROM schools WHERE teacher_id = ? AND role = 'student'").bind(accountId).run();
   } else {
     await env.DB.prepare("DELETE FROM quiz_attempts WHERE student_id = ?").bind(accountId).run();
+    await deleteBadgeData(env, "SELECT id FROM schools WHERE id = ?", accountId);
   }
 
   await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(accountId).run();
@@ -984,6 +1089,7 @@ async function handleTeacherDeleteStudent(request, env, session) {
   }
 
   await env.DB.prepare("DELETE FROM quiz_attempts WHERE student_id = ?").bind(studentId).run();
+  await deleteBadgeData(env, "SELECT id FROM schools WHERE id = ?", studentId);
   await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(studentId).run();
 
   return new Response(JSON.stringify({ ok: true }), {
@@ -1167,6 +1273,20 @@ async function handleHeadteacherResetTeacherPassword(request, env, session) {
 
 const VALID_SYLLABUSES = ["aqa_gcse_cs", "ocr_gcse_cs", "edexcel_gcse_cs"];
 
+// A combined set of notes drawing on all the exam boards. Only independent
+// learners can use it (a school always chooses one real board), and it's what
+// they get if they don't pick a board.
+const GENERAL_SYLLABUS = "general_cs";
+const INDEPENDENT_SYLLABUSES = [...VALID_SYLLABUSES, GENERAL_SYLLABUS];
+
+// Turns what a sign-up form or profile page sends into the value we store:
+// nothing / "none" / "general_cs" all mean "the combined notes".
+function normaliseIndependentSyllabus(raw) {
+  const value = String(raw || "").trim();
+  if (value === "" || value === "none" || value === GENERAL_SYLLABUS) return GENERAL_SYLLABUS;
+  return INDEPENDENT_SYLLABUSES.includes(value) ? value : null; // null = not allowed
+}
+
 // Walks teacher_id up to the headteacher and returns their chosen syllabus,
 // regardless of whether the caller is the headteacher, one of their
 // teachers, or one of those teachers' students.
@@ -1184,6 +1304,11 @@ async function resolveSyllabus(env, session) {
       const htRow = await env.DB.prepare("SELECT teacher_id FROM schools WHERE id = ?").bind(teacherRow.teacher_id).first();
       headteacherId = htRow ? htRow.teacher_id : null;
     }
+  } else if (session.role === "independent") {
+    // No school: an independent learner picks their own exam board, or the
+    // combined notes (which is also the default if they never chose).
+    const own = await env.DB.prepare("SELECT syllabus FROM schools WHERE id = ?").bind(session.userId).first();
+    return own && own.syllabus ? own.syllabus : GENERAL_SYLLABUS;
   }
 
   if (!headteacherId) return null;
@@ -1315,6 +1440,7 @@ async function handleHeadteacherDeleteTeacher(request, env, session) {
     )
     .bind(teacherId)
     .run();
+  await deleteBadgeData(env, "SELECT id FROM schools WHERE teacher_id = ? AND role = 'student'", teacherId);
   await env.DB.prepare("DELETE FROM schools WHERE teacher_id = ? AND role = 'student'").bind(teacherId).run();
   await env.DB.prepare("DELETE FROM schools WHERE id = ?").bind(teacherId).run();
 
@@ -1412,7 +1538,16 @@ async function handleHeadteacherInviteTeachers(request, env, session) {
       ttlMinutes: TEACHER_INVITE_TTL_MINUTES,
       subject: "You're invited to join OmniShell",
       bodyText: () =>
-        `You've been invited to join OmniShell as a teacher. Click the link below to create your account:\n\n${link}\n\nThis link expires in 7 days.`
+        `You've been invited to join OmniShell as a teacher. Click the link below to create your account:\n\n${link}\n\nThis link expires in 7 days.`,
+      bodyHtml: () =>
+        renderEmailHtml({
+          preheader: "You've been invited to join OmniShell as a teacher",
+          heading: "You're invited to OmniShell",
+          intro: "Your headteacher has invited you to join their school on OmniShell as a teacher. Click the button below to create your account.",
+          buttonText: "Create my account",
+          buttonUrl: link,
+          note: "This invitation link expires in 7 days. If you weren't expecting it, you can safely ignore this email."
+        })
     });
 
     if (result.ok) sent.push(email);
@@ -1770,7 +1905,15 @@ async function handleJoinStudentRequestCode(request, env) {
     payload: { classCode: code, displayName, classroomId: classroom.id },
     subject: "Your OmniShell verification code",
     bodyText: (verificationCode) =>
-      `Your OmniShell verification code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`
+      `Your OmniShell verification code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`,
+    bodyHtml: (verificationCode) =>
+      renderEmailHtml({
+        preheader: `Your verification code is ${verificationCode}`,
+        heading: "Confirm your email",
+        intro: `Hi ${displayName}, enter this code to finish joining your class on OmniShell.`,
+        code: verificationCode,
+        note: `This code expires in ${EMAIL_CODE_TTL_MINUTES} minutes. If you didn't ask for it, you can safely ignore this email.`
+      })
   });
 
   if (!result.ok) {
@@ -1860,6 +2003,13 @@ async function handleLearnerSignupRequestCode(request, env) {
     return jsonError(400, "Name is too long");
   }
 
+  // Which notes they want: one of the three exam boards, or the combined notes
+  // covering all of them. Held with the code and saved when it's verified.
+  const syllabus = normaliseIndependentSyllabus(body && body.syllabus);
+  if (syllabus === null) {
+    return jsonError(400, "Choose one of the exam boards, or the combined notes");
+  }
+
   const existing = await env.DB.prepare("SELECT id FROM schools WHERE username = ? OR email = ?").bind(email, email).first();
   if (existing) {
     return jsonError(409, "An account with this email already exists. Log in instead, or use School Login if you're with a school.");
@@ -1868,10 +2018,18 @@ async function handleLearnerSignupRequestCode(request, env) {
   const result = await issueEmailCode(env, {
     email,
     purpose: "learner_signup",
-    payload: { displayName },
+    payload: { displayName, syllabus },
     subject: "Your OmniShell verification code",
     bodyText: (verificationCode) =>
-      `Your OmniShell verification code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`
+      `Your OmniShell verification code is ${verificationCode}. It expires in ${EMAIL_CODE_TTL_MINUTES} minutes.`,
+    bodyHtml: (verificationCode) =>
+      renderEmailHtml({
+        preheader: `Your verification code is ${verificationCode}`,
+        heading: "Welcome to OmniShell",
+        intro: `Hi ${displayName}, enter this code to finish creating your account.`,
+        code: verificationCode,
+        note: `This code expires in ${EMAIL_CODE_TTL_MINUTES} minutes. If you didn't ask for it, you can safely ignore this email.`
+      })
   });
 
   if (!result.ok) {
@@ -1913,6 +2071,11 @@ async function handleLearnerSignupVerifyCode(request, env) {
     return jsonError(409, "An account with this email already exists. Log in instead.");
   }
 
+  const chosenBoard = result.payload && result.payload.syllabus;
+  if (chosenBoard && INDEPENDENT_SYLLABUSES.includes(chosenBoard)) {
+    await env.DB.prepare("UPDATE schools SET syllabus = ? WHERE id = ?").bind(chosenBoard, newId).run();
+  }
+
   await logLoginAttempt(env, { request, username: email, role: "independent", accountId: newId, success: true });
 
   const cookieValue = await signSession({ userId: newId, username: email, role: "independent" }, env);
@@ -1942,15 +2105,406 @@ async function handleQuizAttempt(request, env, session) {
     return jsonError(400, "Invalid quiz result");
   }
 
+  const now = new Date().toISOString();
   await env.DB
     .prepare(
       "INSERT INTO quiz_attempts (student_id, provider, score, total, completed_at) VALUES (?, ?, ?, ?, ?)"
     )
-    .bind(session.userId, provider, score, total, new Date().toISOString())
+    .bind(session.userId, provider, score, total, now)
     .run();
 
-  return new Response(JSON.stringify({ ok: true }), {
+  // Remember which commands were answered correctly (this is what language
+  // mastery is counted from). Sanity-limited: it can't list more commands than
+  // the score, and a failure here must never lose the quiz result above.
+  const claimed = Array.isArray(body && body.correctCommands) ? body.correctCommands : [];
+  const correctCommands = [
+    ...new Set(
+      claimed
+        .filter((c) => typeof c === "string")
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0 && c.length <= 200)
+    )
+  ].slice(0, Math.min(score, 50));
+  if (correctCommands.length > 0 && /^[a-z0-9_]{1,60}$/.test(provider)) {
+    try {
+      await env.DB.batch(
+        correctCommands.map((command) =>
+          env.DB
+            .prepare("INSERT OR IGNORE INTO quiz_correct (student_id, provider, command, first_correct_at) VALUES (?, ?, ?, ?)")
+            .bind(session.userId, provider, command, now)
+        )
+      );
+    } catch {
+      // quiz_correct not created yet: the quiz still counts, mastery just isn't tracked
+    }
+  }
+
+  const { newIds } = await awardBadges(env, session.userId);
+
+  return new Response(JSON.stringify({ ok: true, newBadges: newIds }), {
     status: 201,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+// ---------- badges and streaks ----------
+//
+// Badges are awarded automatically by the server after each quiz, from what
+// is stored about the learner (never from anything the browser claims about
+// badges). The rules live in badgesFromStats() below as a plain function so
+// they're easy to read and to test. How badges *look* is in web/badges.js.
+
+const LANGUAGE_PROVIDERS = ["linux", "powershell", "python", "javascript", "java", "cpp", "sql", "git"];
+
+// Language mastery counts DIFFERENT commands answered correctly at least once.
+const MASTERY_TIERS = [
+  { tier: "bronze", count: 25 },
+  { tier: "silver", count: 75 },
+  { tier: "gold", count: 150 }
+];
+
+const STREAK_BADGES = [
+  { id: "streak_3", days: 3 },
+  { id: "streak_7", days: 7 },
+  { id: "streak_30", days: 30 }
+];
+
+// The calendar day, in UK time, that a timestamp falls on ("2026-11-07").
+function londonDay(isoOrDate) {
+  return new Date(isoOrDate).toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+}
+
+function previousDay(day) {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Current streak: consecutive days with a quiz, counting back from today.
+// Weekends are forgiving: taking a quiz on a Saturday or Sunday adds to the
+// streak, but missing one never breaks it (so it suits school pupils). Not
+// having done a quiz *yet today* doesn't break it either.
+function computeStreak(quizDays, today) {
+  let streak = 0;
+  let day = today;
+  for (let i = 0; i < 400; i++) {
+    const dow = new Date(`${day}T12:00:00Z`).getUTCDay();
+    const isWeekend = dow === 0 || dow === 6;
+    if (quizDays.has(day)) {
+      streak++;
+    } else if (!isWeekend && i > 0) {
+      break;
+    }
+    day = previousDay(day);
+  }
+  return streak;
+}
+
+// attempts: [{ provider, score, total, completed_at }] oldest first
+// correctByProvider: { python: 42, linux: 10, ... } (different commands answered correctly)
+function summariseAttempts(attempts, correctByProvider, now) {
+  const quizDays = new Set(attempts.map((a) => londonDay(a.completed_at)));
+  const lastPercentByProvider = {};
+  let comeback = false;
+  let highScores = 0;
+  let fullMarks = false;
+  const tried = new Set();
+
+  for (const a of attempts) {
+    if (!(a.total > 0)) continue;
+    const pct = (100 * a.score) / a.total;
+    if (pct >= 90) highScores++;
+    if (a.total >= 5 && a.score === a.total) fullMarks = true;
+    if (LANGUAGE_PROVIDERS.includes(a.provider)) tried.add(a.provider);
+    const prev = lastPercentByProvider[a.provider];
+    if (prev !== undefined && pct - prev >= 20) comeback = true;
+    lastPercentByProvider[a.provider] = pct;
+  }
+
+  return {
+    attemptCount: attempts.length,
+    fullMarks,
+    highScores,
+    comeback,
+    languagesTried: tried.size,
+    streak: computeStreak(quizDays, londonDay(now)),
+    correctByProvider: correctByProvider || {}
+  };
+}
+
+// The badge rules. Returns every badge id the learner has earned so far.
+function badgesFromStats(stats) {
+  const earned = [];
+  if (stats.attemptCount >= 1) earned.push("first_quiz");
+  if (stats.attemptCount >= 10) earned.push("quizzes_10");
+  if (stats.attemptCount >= 50) earned.push("quizzes_50");
+  if (stats.attemptCount >= 100) earned.push("quizzes_100");
+  if (stats.fullMarks) earned.push("full_marks");
+  if (stats.highScores >= 3) earned.push("hat_trick");
+  if (stats.comeback) earned.push("comeback");
+  if (stats.languagesTried >= LANGUAGE_PROVIDERS.length) earned.push("polyglot");
+
+  for (const s of STREAK_BADGES) {
+    if (stats.streak >= s.days) earned.push(s.id);
+  }
+
+  for (const provider of LANGUAGE_PROVIDERS) {
+    const n = stats.correctByProvider[provider] || 0;
+    for (const t of MASTERY_TIERS) {
+      if (n >= t.count) earned.push(`mastery_${provider}_${t.tier}`);
+    }
+  }
+  return earned;
+}
+
+// Reads what we need about a learner. The commands table is read separately
+// so a missing table (migration 0008 not run yet) only switches mastery off.
+async function loadLearnerStats(env, userId) {
+  const attemptRows = await env.DB
+    .prepare("SELECT provider, score, total, completed_at FROM quiz_attempts WHERE student_id = ? ORDER BY completed_at LIMIT 5000")
+    .bind(userId)
+    .all();
+
+  const correctByProvider = {};
+  try {
+    const correctRows = await env.DB
+      .prepare("SELECT provider, COUNT(*) AS n FROM quiz_correct WHERE student_id = ? GROUP BY provider")
+      .bind(userId)
+      .all();
+    for (const r of correctRows.results || []) correctByProvider[r.provider] = r.n;
+  } catch {
+    // table not created yet: no mastery badges until it is
+  }
+
+  return summariseAttempts(attemptRows.results || [], correctByProvider, new Date());
+}
+
+// Works out what's been earned and saves anything new. Safe to run as often as
+// you like: badges already held are never touched. Returns the ids that were
+// newly awarded, plus the stats it used. Never throws, so a badge problem can
+// never stop a quiz result being saved.
+async function awardBadges(env, userId) {
+  try {
+    const stats = await loadLearnerStats(env, userId);
+    const shouldHave = badgesFromStats(stats);
+    const held = await env.DB.prepare("SELECT badge_id FROM user_badges WHERE user_id = ?").bind(userId).all();
+    const heldIds = new Set((held.results || []).map((r) => r.badge_id));
+    const newIds = shouldHave.filter((id) => !heldIds.has(id));
+    const now = new Date().toISOString();
+    for (const id of newIds) {
+      await env.DB
+        .prepare("INSERT OR IGNORE INTO user_badges (user_id, badge_id, earned_at) VALUES (?, ?, ?)")
+        .bind(userId, id, now)
+        .run();
+    }
+    return { newIds, stats };
+  } catch {
+    return { newIds: [], stats: null };
+  }
+}
+
+// Called when an account's quiz history is deleted, so no badge data is left
+// behind. Each table is tried on its own so a missing one can't block deletion.
+async function deleteBadgeData(env, idsSql, ...binds) {
+  for (const [table, column] of [["quiz_correct", "student_id"], ["user_badges", "user_id"]]) {
+    try {
+      await env.DB.prepare(`DELETE FROM ${table} WHERE ${column} IN (${idsSql})`).bind(...binds).run();
+    } catch {
+      // table not created yet
+    }
+  }
+}
+
+// ---------- profile ----------
+
+// Who's logged in, for the header. The name is best-effort: if the lookup
+// fails the page still works and just falls back to the username.
+async function handleMe(env, session) {
+  let displayName = null;
+  try {
+    const row = await env.DB.prepare("SELECT display_name FROM schools WHERE id = ?").bind(session.userId).first();
+    displayName = row && row.display_name ? row.display_name : null;
+  } catch {
+    displayName = null;
+  }
+  return new Response(JSON.stringify({ username: session.username, role: session.role, displayName }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+// Everything the profile page shows, and only ever about the logged-in user:
+// the account id always comes from the signed session cookie, never from the
+// request, so nobody can ask for someone else's profile.
+async function handleProfile(env, session) {
+  const me = await env.DB
+    .prepare("SELECT id, username, display_name, email, role, teacher_id, classroom_id, syllabus, created_at FROM schools WHERE id = ?")
+    .bind(session.userId)
+    .first();
+  if (!me) {
+    return jsonError(404, "Account not found");
+  }
+
+  const nameOf = (row) => (row ? row.display_name || row.username : null);
+
+  const profile = {
+    displayName: me.display_name || null,
+    username: me.username,
+    email: me.email || (String(me.username).includes("@") ? me.username : null),
+    role: me.role,
+    memberSince: me.created_at || null,
+    headteacher: null,
+    teacher: null,
+    classroom: null,
+    classrooms: [],
+    counts: null,
+    syllabus: null,
+    canChooseBoard: me.role === "independent",
+    stats: null,
+    badges: null
+  };
+
+  if (me.role === "student") {
+    if (me.classroom_id) {
+      const room = await env.DB.prepare("SELECT name FROM classrooms WHERE id = ?").bind(me.classroom_id).first();
+      profile.classroom = room ? room.name : null;
+    }
+    if (me.teacher_id) {
+      const teacher = await env.DB
+        .prepare("SELECT display_name, username, teacher_id FROM schools WHERE id = ?")
+        .bind(me.teacher_id)
+        .first();
+      profile.teacher = nameOf(teacher);
+      if (teacher && teacher.teacher_id) {
+        const head = await env.DB
+          .prepare("SELECT display_name, username FROM schools WHERE id = ?")
+          .bind(teacher.teacher_id)
+          .first();
+        profile.headteacher = nameOf(head);
+      }
+    }
+  } else if (me.role === "teacher") {
+    if (me.teacher_id) {
+      const head = await env.DB
+        .prepare("SELECT display_name, username FROM schools WHERE id = ?")
+        .bind(me.teacher_id)
+        .first();
+      profile.headteacher = nameOf(head);
+    }
+    const rooms = await env.DB
+      .prepare(
+        `SELECT c.id, c.name, COUNT(s.id) AS students
+         FROM classrooms c
+         LEFT JOIN schools s ON s.classroom_id = c.id AND s.role = 'student'
+         WHERE c.teacher_id = ?
+         GROUP BY c.id, c.name
+         ORDER BY c.name`
+      )
+      .bind(me.id)
+      .all();
+    profile.classrooms = (rooms.results || []).map((r) => ({ name: r.name, students: r.students }));
+  } else if (me.role === "headteacher") {
+    const teachers = await env.DB
+      .prepare("SELECT COUNT(*) AS n FROM schools WHERE role = 'teacher' AND teacher_id = ?")
+      .bind(me.id)
+      .first();
+    const students = await env.DB
+      .prepare("SELECT COUNT(*) AS n FROM schools WHERE role = 'student' AND teacher_id IN (SELECT id FROM schools WHERE role = 'teacher' AND teacher_id = ?)")
+      .bind(me.id)
+      .first();
+    profile.counts = { teachers: teachers ? teachers.n : 0, students: students ? students.n : 0 };
+  }
+
+  // Exam board: a headteacher picks it, their teachers and students inherit it.
+  if (me.role === "headteacher") {
+    profile.syllabus = me.syllabus || null;
+  } else if (me.role === "independent") {
+    profile.syllabus = me.syllabus || GENERAL_SYLLABUS;
+  } else if (me.role === "teacher" || me.role === "student") {
+    profile.syllabus = await resolveSyllabus(env, session);
+  }
+
+  // Quiz progress (students and independent learners are the ones who take quizzes).
+  if (me.role === "student" || me.role === "independent") {
+    const perProvider = await env.DB
+      .prepare(
+        `SELECT provider,
+                COUNT(*) AS attempts,
+                MAX(100.0 * score / total) AS best_percent,
+                AVG(100.0 * score / total) AS average_percent
+         FROM quiz_attempts
+         WHERE student_id = ? AND total > 0
+         GROUP BY provider
+         ORDER BY provider`
+      )
+      .bind(me.id)
+      .all();
+    const rows = (perProvider.results || []).map((r) => ({
+      provider: r.provider,
+      attempts: r.attempts,
+      bestPercent: Math.round(r.best_percent),
+      averagePercent: Math.round(r.average_percent)
+    }));
+    const totalAttempts = rows.reduce((sum, r) => sum + r.attempts, 0);
+    const weightedAverage = totalAttempts
+      ? Math.round(rows.reduce((sum, r) => sum + r.averagePercent * r.attempts, 0) / totalAttempts)
+      : 0;
+    profile.stats = { quizzesTaken: totalAttempts, averagePercent: weightedAverage, byProvider: rows };
+
+    // Badges. Running the award check here also gives anyone with quiz history
+    // from before badges existed the badges they'd already earned.
+    const award = await awardBadges(env, me.id);
+    if (award.stats) {
+      let earned = [];
+      try {
+        const held = await env.DB
+          .prepare("SELECT badge_id, earned_at FROM user_badges WHERE user_id = ? ORDER BY earned_at")
+          .bind(me.id)
+          .all();
+        earned = (held.results || []).map((r) => ({ id: r.badge_id, earnedAt: r.earned_at }));
+      } catch {
+        earned = [];
+      }
+      profile.badges = {
+        earned,
+        streak: award.stats.streak,
+        mastery: award.stats.correctByProvider,
+        tiers: MASTERY_TIERS,
+        languages: LANGUAGE_PROVIDERS
+      };
+    }
+  }
+
+  return new Response(JSON.stringify(profile), {
+    status: 200,
+    headers: { "Content-Type": "application/json" }
+  });
+}
+
+// An independent learner changing which exam board's notes they see. School
+// accounts can't: their board is chosen by their headteacher. "none" (or
+// empty) means no exam board: just the general notes.
+async function handleSetOwnSyllabus(request, env, session) {
+  if (session.role !== "independent") {
+    return jsonError(403, "Your exam board is chosen by your school");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError(400, "Invalid request");
+  }
+
+  const value = normaliseIndependentSyllabus(body && body.syllabus);
+  if (value === null) {
+    return jsonError(400, "Invalid syllabus");
+  }
+
+  await env.DB.prepare("UPDATE schools SET syllabus = ? WHERE id = ?").bind(value, session.userId).run();
+
+  return new Response(JSON.stringify({ ok: true, syllabus: value }), {
+    status: 200,
     headers: { "Content-Type": "application/json" }
   });
 }
@@ -2069,10 +2623,13 @@ export default {
     }
 
     if (pathname === "/api/me" && method === "GET") {
-      return new Response(JSON.stringify({ username: session.username, role: session.role }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      });
+      return handleMe(env, session);
+    }
+    if (pathname === "/api/profile" && method === "GET") {
+      return handleProfile(env, session);
+    }
+    if (pathname === "/api/profile/syllabus" && method === "POST") {
+      return handleSetOwnSyllabus(request, env, session);
     }
     if (pathname === "/api/syllabus" && method === "GET") {
       return handleGetSyllabus(env, session);

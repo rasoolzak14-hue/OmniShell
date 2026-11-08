@@ -95,9 +95,25 @@
     color: var(--text);
     font-size: 1rem;
   }
-  input:focus {
+  input:focus,
+  select:focus {
     outline: none;
     border-color: var(--accent);
+  }
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  .field-hint {
+    margin: 0 0 16px;
+    font-size: 0.8rem;
+    color: var(--muted);
   }
   .code-input {
     text-align: center;
@@ -190,6 +206,18 @@
     <label for="email">Email</label>
     <input id="email" name="email" type="email" autocomplete="email" required>
 
+    <div id="board-field" hidden>
+      <label for="board">What are you studying for?</label>
+      <select id="board" name="syllabus">
+        <option value="" disabled selected>Choose&hellip;</option>
+        <option value="general_cs">Not sure / all exam boards &ndash; a mixture of everything</option>
+        <option value="aqa_gcse_cs">AQA GCSE Computer Science</option>
+        <option value="ocr_gcse_cs">OCR GCSE Computer Science</option>
+        <option value="edexcel_gcse_cs">Edexcel/Pearson GCSE Computer Science</option>
+      </select>
+      <p class="field-hint">Pick an exam board to see its syllabus notes, or choose the first option for general notes that bring together the topics from all of them. You can change this later.</p>
+    </div>
+
     <p class="error" id="request-error"></p>
 
     <button type="submit" id="request-submit-btn">Send me a code</button>
@@ -240,6 +268,8 @@
   const requestSubmitBtn = document.getElementById("request-submit-btn");
   const nameField = document.getElementById("name-field");
   const nameInput = document.getElementById("display-name");
+  const boardField = document.getElementById("board-field");
+  const boardSelect = document.getElementById("board");
   const tabLogin = document.getElementById("tab-login");
   const tabSignup = document.getElementById("tab-signup");
 
@@ -258,6 +288,8 @@
     tabSignup.classList.toggle("active", signup);
     nameField.hidden = !signup;
     nameInput.required = signup;
+    boardField.hidden = !signup;
+    boardSelect.required = signup;
     requestErrorEl.textContent = "";
   }
 
@@ -275,7 +307,9 @@
 
     const email = document.getElementById("email").value.trim();
     const url = mode === "signup" ? "/api/learner/signup/request-code" : "/api/login/request-code";
-    const payload = mode === "signup" ? { email, displayName: nameInput.value } : { email };
+    const payload = mode === "signup"
+      ? { email, displayName: nameInput.value, syllabus: boardSelect.value }
+      : { email };
 
     try {
       const res = await fetch(url, {

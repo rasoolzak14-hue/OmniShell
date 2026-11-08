@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  if (localStorage.getItem("omnishell_theme") === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  }
+</script>
+<title>OmniShell &mdash; Your profile</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #8a8f98;
+    --accent: #4fc3f7;
+    --good: #4cd08a;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6f9;
+    --panel: #ffffff;
+    --border: #d7dce3;
+    --text: #1b1f24;
+    --muted: #5b6470;
+    --accent: #0284c7;
+    --good: #15803d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .topbar {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 16px 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .topbar .group { display: flex; gap: 8px; }
+  .topbar a, .topbar button {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.4;
+  }
+  .topbar a:hover, .topbar button:hover { color: var(--text); border-color: var(--accent); }
+  main { max-width: 760px; margin: 0 auto; padding: 16px 16px 64px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 0 0 16px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
+  .hero { display: flex; align-items: center; gap: 16px; }
+  .avatar {
+    flex: none;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 1.8rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hero h1 { margin: 0; font-size: 1.4rem; word-break: break-word; }
+  .role {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; }
+  dt { color: var(--muted); font-size: 0.9rem; }
+  dd { margin: 0; word-break: break-word; }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+  .stat { flex: 1 1 130px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .stat b { display: block; font-size: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+  td.num, th.num { text-align: right; }
+  .bar { height: 6px; border-radius: 3px; background: var(--border); margin-top: 4px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--good); }
+  .cta {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; margin: 4px 0 6px; }
+  .badge { text-align: center; font-size: 0.78rem; color: var(--muted); }
+  .badge.earned { color: var(--text); }
+  .badge svg { width: 68px; height: 68px; display: block; margin: 0 auto 4px; }
+  .badge .bname { font-weight: 600; }
+  .badge .bnote { font-size: 0.7rem; color: var(--muted); line-height: 1.25; margin-top: 1px; }
+  .badge .meter { height: 4px; border-radius: 2px; background: var(--border); margin: 4px 8px 0; overflow: hidden; }
+  .badge .meter > span { display: block; height: 100%; background: var(--accent); }
+  .subhead { margin: 18px 0 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .subhead:first-child { margin-top: 0; }
+  .streakline { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; }
+  .streakline b { font-size: 1.6rem; }
+  .board-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .board-row select {
+    flex: 1 1 260px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  .board-row button {
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .board-row button:disabled { opacity: 0.6; cursor: default; }
+  .error { color: #ff6b6b; }
+  [hidden] { display: none !important; }
+  @media (max-width: 480px) {
+    .hero { flex-direction: column; text-align: center; }
+    dl { grid-template-columns: 1fr; gap: 2px; }
+    dd { margin-bottom: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/">&larr; Back to home</a>
+  <div class="group">
+    <button type="button" id="theme-toggle" aria-label="Toggle theme"></button>
+    <a href="/api/logout">Log out</a>
+  </div>
+</div>
+
+<main>
+  <p id="loading" class="muted">Loading your profile&hellip;</p>
+  <p id="load-error" class="error" hidden></p>
+
+  <div id="content" hidden>
+    <section class="card hero">
+      <div class="avatar" id="avatar" aria-hidden="true"></div>
+      <div>
+        <h1 id="name"></h1>
+        <span class="role" id="role"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Your details</h2>
+      <dl id="details"></dl>
+    </section>
+
+    <section class="card" id="teacher-card" hidden>
+      <h2>Your classrooms</h2>
+      <div id="classroom-list"></div>
+      <a class="cta" href="/teacher.html">Open teacher dashboard</a>
+    </section>
+
+    <section class="card" id="head-card" hidden>
+      <h2>Your school</h2>
+      <div id="school-stats"></div>
+      <a class="cta" href="/headteacher.html">Open headteacher dashboard</a>
+    </section>
+
+    <section class="card" id="progress-card" hidden>
+      <h2>Quiz progress</h2>
+      <div id="progress"></div>
+    </section>
+
+    <section class="card" id="board-card" hidden>
+      <h2>Your exam board</h2>
+      <p class="muted" style="margin:0 0 10px;">Choose the exam board you&rsquo;re studying for and you&rsquo;ll see its syllabus notes on the home page. If you&rsquo;re not sure, or don&rsquo;t need a particular board, keep the general notes, which bring together the topics from all of them.</p>
+      <div class="board-row">
+        <select id="board-select" aria-label="Exam board">
+          <option value="general_cs">General notes &ndash; a mixture of all exam boards</option>
+          <option value="aqa_gcse_cs">AQA GCSE Computer Science (8525)</option>
+          <option value="ocr_gcse_cs">OCR GCSE Computer Science (J277)</option>
+          <option value="edexcel_gcse_cs">Edexcel/Pearson GCSE Computer Science (1CP2)</option>
+        </select>
+        <button type="button" id="board-save">Save</button>
+      </div>
+      <p id="board-msg" class="muted" style="margin:8px 0 0;"></p>
+    </section>
+
+    <section class="card" id="badges-card" hidden>
+      <h2>Badges</h2>
+      <div id="badges-body"></div>
+    </section>
+  </div>
+</main>
+
+<script src="badges.js"></script>
+<script>
+  // ----- theme -----
+  const themeBtn = document.getElementById("theme-toggle");
+  function updateThemeLabel() {
+    const light = document.documentElement.getAttribute("data-theme") === "light";
+    // Written as escape codes (moon, sun) so they show correctly whatever encoding the file is served with.
+    themeBtn.textContent = light ? "\u{1F319}" : "\u{2600}\u{FE0F}";
+    themeBtn.setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
+  }
+  themeBtn.addEventListener("click", () => {
+    const light = document.documentElement.getAttribute("data-theme") === "light";
+    if (light) { document.documentElement.removeAttribute("data-theme"); localStorage.setItem("omnishell_theme", "dark"); }
+    else { document.documentElement.setAttribute("data-theme", "light"); localStorage.setItem("omnishell_theme", "light"); }
+    updateThemeLabel();
+  });
+  updateThemeLabel();
+
+  // ----- labels -----
+  const ROLE_LABELS = { headteacher: "Headteacher", teacher: "Teacher", student: "Student", independent: "Independent learner" };
+  const BOARD_LABELS = {
+    aqa_gcse_cs: "AQA GCSE Computer Science (8525)",
+    ocr_gcse_cs: "OCR GCSE Computer Science (J277)",
+    edexcel_gcse_cs: "Edexcel/Pearson GCSE Computer Science (1CP2)",
+    general_cs: "General Computer Science (a mixture of all exam boards)"
+  };
+  const PROVIDER_LABELS = {
+    linux: "Linux", powershell: "PowerShell", python: "Python", javascript: "JavaScript",
+    java: "Java", cpp: "C++", sql: "SQL", git: "Git"
+  };
+  function providerLabel(id) {
+    if (PROVIDER_LABELS[id]) return PROVIDER_LABELS[id];
+    if (String(id).startsWith("syllabus_")) {
+      const board = BOARD_LABELS[String(id).replace(/^syllabus_/, "")];
+      return board ? board.replace(/ \(.*\)$/, "") + " (topics)" : id;
+    }
+    return id;
+  }
+
+  // ----- helpers (all text goes in with textContent, never as HTML) -----
+  function el(tag, text, cls) {
+    const e = document.createElement(tag);
+    if (text !== undefined && text !== null) e.textContent = text;
+    if (cls) e.className = cls;
+    return e;
+  }
+  function addRow(dl, label, value) {
+    if (value === null || value === undefined || value === "") return;
+    dl.appendChild(el("dt", label));
+    dl.appendChild(el("dd", value));
+  }
+  function formatDate(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  // One badge tile: coloured if earned, greyed out if not.
+  function badgeTile(id, earned, note, meterPercent) {
+    const b = OmniBadges.get(id);
+    const tile = el("div", null, "badge" + (earned ? " earned" : ""));
+    tile.title = b.description;
+    tile.innerHTML = OmniBadges.svg(id, !earned);
+    tile.appendChild(el("div", b.name, "bname"));
+    if (note) tile.appendChild(el("div", note, "bnote"));
+    if (meterPercent !== undefined && meterPercent !== null) {
+      const m = el("div", null, "meter");
+      const f = el("span");
+      f.style.width = Math.max(0, Math.min(100, meterPercent)) + "%";
+      m.appendChild(f);
+      tile.appendChild(m);
+    }
+    return tile;
+  }
+
+  // The badges card: language mastery (one tile per language, showing the best
+  // level reached and progress to the next), then streaks, then milestones.
+  function renderBadges(badges) {
+    const body = document.getElementById("badges-body");
+    if (!badges) {
+      body.appendChild(el("p", "Badges aren't available right now. Your quiz progress above is still being saved.", "muted"));
+      return;
+    }
+    const earned = new Set(badges.earned.map((b) => b.id));
+    const tiers = OmniBadges.TIERS;
+
+    body.appendChild(el("div", "Language mastery", "subhead"));
+    body.appendChild(el("p", "Answer different commands correctly to level up each language.", "muted"));
+    const mastery = el("div", null, "badges");
+    OmniBadges.LANGUAGES.forEach((lang) => {
+      const count = (badges.mastery && badges.mastery[lang.id]) || 0;
+      // highest tier already earned, or the first tier (locked) if none yet
+      let shownTier = tiers[0];
+      let reached = -1;
+      tiers.forEach((t, i) => { if (earned.has(`mastery_${lang.id}_${t.key}`)) { reached = i; shownTier = t; } });
+      const next = tiers[reached + 1];
+      const id = `mastery_${lang.id}_${shownTier.key}`;
+      const note = next ? `${count} / ${next.count} to ${next.name}` : `${count} commands: top level!`;
+      const meter = next ? (100 * count) / next.count : 100;
+      mastery.appendChild(badgeTile(id, reached >= 0, note, meter));
+    });
+    body.appendChild(mastery);
+
+    body.appendChild(el("div", "Streaks", "subhead"));
+    const line = el("p", null, "streakline");
+    line.appendChild(el("b", String(badges.streak)));
+    line.appendChild(document.createTextNode("day streak"));
+    body.appendChild(line);
+    body.appendChild(el("p", "Take a quiz each day to keep it going. Weekends never break your streak.", "muted"));
+    const streaks = el("div", null, "badges");
+    ["streak_3", "streak_7", "streak_30"].forEach((id) => streaks.appendChild(badgeTile(id, earned.has(id))));
+    body.appendChild(streaks);
+
+    body.appendChild(el("div", "Milestones", "subhead"));
+    const milestones = el("div", null, "badges");
+    Object.values(OmniBadges.catalogue)
+      .filter((b) => b.group === "milestone")
+      .forEach((b) => milestones.appendChild(badgeTile(b.id, earned.has(b.id), earned.has(b.id) ? null : b.description)));
+    body.appendChild(milestones);
+  }
+
+  // Independent learners can switch exam board (school accounts can't: their
+  // headteacher chooses it).
+  function setupBoardPicker(current) {
+    const card = document.getElementById("board-card");
+    const select = document.getElementById("board-select");
+    const save = document.getElementById("board-save");
+    const msg = document.getElementById("board-msg");
+    select.value = current || "general_cs";
+    card.hidden = false;
+    save.addEventListener("click", async () => {
+      save.disabled = true;
+      msg.textContent = "";
+      try {
+        const res = await fetch("/api/profile/syllabus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ syllabus: select.value })
+        });
+        msg.textContent = res.ok ? "Saved. Your home page will now show this exam board." : "Couldn't save that. Please try again.";
+      } catch {
+        msg.textContent = "Couldn't reach the server. Please try again.";
+      } finally {
+        save.disabled = false;
+      }
+    });
+  }
+
+  // ----- load the profile -----
+  (async function load() {
+    const loading = document.getElementById("loading");
+    const errorEl = document.getElementById("load-error");
+    let p;
+    try {
+      const res = await fetch("/api/profile");
+      if (res.status === 401) { window.location.href = "/"; return; }
+      if (!res.ok) throw new Error("bad status");
+      p = await res.json();
+    } catch {
+      loading.hidden = true;
+      errorEl.textContent = "Couldn't load your profile. Please try again.";
+      errorEl.hidden = false;
+      return;
+    }
+    loading.hidden = true;
+
+    const shown = String(p.displayName || p.username || "").trim();
+    const name = shown.includes("@") ? shown.split("@")[0] : shown;
+    document.getElementById("avatar").textContent = (name.charAt(0) || "?").toUpperCase();
+    document.getElementById("name").textContent = name || "Your profile";
+    document.getElementById("role").textContent = ROLE_LABELS[p.role] || p.role;
+
+    const dl = document.getElementById("details");
+    addRow(dl, "Name", p.displayName);
+    addRow(dl, "Email", p.email);
+    if (!p.email) addRow(dl, "Username", p.username);
+    addRow(dl, "Account type", ROLE_LABELS[p.role] || p.role);
+    addRow(dl, "Member since", formatDate(p.memberSince));
+    addRow(dl, "School headteacher", p.headteacher);
+    addRow(dl, "Your teacher", p.teacher);
+    addRow(dl, "Your classroom", p.classroom);
+    addRow(dl, "Exam board", p.syllabus ? (BOARD_LABELS[p.syllabus] || p.syllabus) : (p.role === "independent" ? BOARD_LABELS.general_cs : "Not chosen yet"));
+
+    // Teachers: their classrooms
+    if (p.role === "teacher") {
+      const card = document.getElementById("teacher-card");
+      const list = document.getElementById("classroom-list");
+      if (p.classrooms && p.classrooms.length) {
+        const table = el("table");
+        const head = el("thead");
+        const hr = el("tr");
+        hr.appendChild(el("th", "Classroom"));
+        hr.appendChild(el("th", "Students", "num"));
+        head.appendChild(hr);
+        table.appendChild(head);
+        const body = el("tbody");
+        p.classrooms.forEach((c) => {
+          const tr = el("tr");
+          tr.appendChild(el("td", c.name));
+          tr.appendChild(el("td", String(c.students), "num"));
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        list.appendChild(table);
+      } else {
+        list.appendChild(el("p", "You haven't created a classroom yet.", "muted"));
+      }
+      card.hidden = false;
+    }
+
+    // Headteachers: school totals
+    if (p.role === "headteacher" && p.counts) {
+      const wrap = document.getElementById("school-stats");
+      const stats = el("div", null, "stats");
+      [[p.counts.teachers, "Teachers"], [p.counts.students, "Students"]].forEach(([n, label]) => {
+        const s = el("div", null, "stat");
+        s.appendChild(el("b", String(n)));
+        s.appendChild(document.createTextNode(label));
+        stats.appendChild(s);
+      });
+      wrap.appendChild(stats);
+      document.getElementById("head-card").hidden = false;
+    }
+
+    // Badges are for people who take quizzes.
+    if (p.role === "student" || p.role === "independent") {
+      document.getElementById("badges-card").hidden = false;
+      renderBadges(p.badges);
+    }
+
+    // Independent learners choose their own exam board.
+    if (p.canChooseBoard) {
+      setupBoardPicker(p.syllabus);
+    }
+
+    // Students and independent learners: quiz progress
+    if (p.stats) {
+      const box = document.getElementById("progress");
+      if (!p.stats.quizzesTaken) {
+        box.appendChild(el("p", "You haven't taken a quiz yet.", "muted"));
+        const a = el("a", "Take your first quiz", "cta");
+        a.href = "/quiz.html";
+        box.appendChild(a);
+      } else {
+        const stats = el("div", null, "stats");
+        [[p.stats.quizzesTaken, "Quizzes taken"], [p.stats.averagePercent + "%", "Average score"]].forEach(([n, label]) => {
+          const s = el("div", null, "stat");
+          s.appendChild(el("b", String(n)));
+          s.appendChild(document.createTextNode(label));
+          stats.appendChild(s);
+        });
+        box.appendChild(stats);
+
+        const table = el("table");
+        const head = el("thead");
+        const hr = el("tr");
+        hr.appendChild(el("th", "Subject"));
+        hr.appendChild(el("th", "Quizzes", "num"));
+        hr.appendChild(el("th", "Average", "num"));
+        hr.appendChild(el("th", "Best", "num"));
+        head.appendChild(hr);
+        table.appendChild(head);
+        const body = el("tbody");
+        p.stats.byProvider.forEach((r) => {
+          const tr = el("tr");
+          const first = el("td", providerLabel(r.provider));
+          const bar = el("div", null, "bar");
+          const fill = el("span");
+          fill.style.width = Math.max(0, Math.min(100, r.averagePercent)) + "%";
+          bar.appendChild(fill);
+          first.appendChild(bar);
+          tr.appendChild(first);
+          tr.appendChild(el("td", String(r.attempts), "num"));
+          tr.appendChild(el("td", r.averagePercent + "%", "num"));
+          tr.appendChild(el("td", r.bestPercent + "%", "num"));
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        box.appendChild(table);
+      }
+      document.getElementById("progress-card").hidden = false;
+    }
+
+    document.getElementById("content").hidden = false;
+  })();
+</script>
+</body>
+</html>

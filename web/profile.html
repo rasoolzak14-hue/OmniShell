@@ -37,9 +37,13 @@
     line-height: 1.5;
   }
   .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
     max-width: 760px;
     margin: 0 auto;
-    padding: 16px 16px 0;
+    padding: 16px 16px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -345,6 +349,16 @@
     body.appendChild(milestones);
   }
 
+  // For people who don't take quizzes: just the badges they've earned.
+  function renderEarnedBadgesOnly(earnedList) {
+    const body = document.getElementById("badges-body");
+    const row = el("div", null, "badges");
+    earnedList.forEach((b) => {
+      if (OmniBadges.get(b.id)) row.appendChild(badgeTile(b.id, true));
+    });
+    body.appendChild(row);
+  }
+
   // Independent learners can switch exam board (school accounts can't: their
   // headteacher chooses it).
   function setupBoardPicker(current) {
@@ -448,10 +462,15 @@
       document.getElementById("head-card").hidden = false;
     }
 
-    // Badges are for people who take quizzes.
+    // The full badge board (language levels, streaks) is for people who take
+    // quizzes. Everyone else, such as teachers and headteachers, just sees the
+    // badges they've earned, which is at least the Welcome badge.
     if (p.role === "student" || p.role === "independent") {
       document.getElementById("badges-card").hidden = false;
       renderBadges(p.badges);
+    } else if (p.earnedBadges && p.earnedBadges.length) {
+      document.getElementById("badges-card").hidden = false;
+      renderEarnedBadgesOnly(p.earnedBadges);
     }
 
     // Independent learners choose their own exam board.

@@ -48,6 +48,7 @@ const OmniBadges = (function () {
   });
 
   [
+    ["welcome", "Welcome", "Logged in to OmniShell for the first time", "burst", "#4cd08a", "Hi"],
     ["first_quiz", "First Steps", "Finish your first quiz", "circle", "#4fc3f7", "1"],
     ["quizzes_10", "Warming Up", "Finish 10 quizzes", "circle", "#38bdf8", "10"],
     ["quizzes_50", "Quiz Regular", "Finish 50 quizzes", "circle", "#818cf8", "50"],
@@ -70,6 +71,17 @@ const OmniBadges = (function () {
       <text x="50" y="${a.glyph.length > 2 ? 56 : 58}" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-weight="700" font-size="${size}" fill="#fff">${a.glyph}</text>${ribbon}`;
   }
 
+  // A starburst: n points, alternating between the outer and inner radius.
+  function burstPoints(n, outer, inner) {
+    const pts = [];
+    for (let i = 0; i < n * 2; i++) {
+      const r = i % 2 ? inner : outer;
+      const angle = (Math.PI * i) / n - Math.PI / 2;
+      pts.push(`${(50 + r * Math.cos(angle)).toFixed(1)},${(50 + r * Math.sin(angle)).toFixed(1)}`);
+    }
+    return pts.join(" ");
+  }
+
   function shapeSvg(a) {
     const c = a.color;
     const stroke = 'stroke="rgba(0,0,0,.35)" stroke-width="2"';
@@ -78,6 +90,7 @@ const OmniBadges = (function () {
       star: `<polygon points="50,8 62,36 92,38 69,57 77,87 50,70 23,87 31,57 8,38 38,36" fill="${c}" ${stroke}/>`,
       shield: `<path d="M50 6 L88 20 V50 C88 72 70 86 50 94 C30 86 12 72 12 50 V20Z" fill="${c}" ${stroke}/>`,
       circle: `<circle cx="50" cy="50" r="40" fill="${c}" ${stroke}/>`,
+      burst: `<polygon points="${burstPoints(12, 46, 37)}" fill="${c}" ${stroke}/>`,
       diamond: `<polygon points="50,6 90,50 50,94 10,50" fill="${c}" ${stroke}/>`
     };
     const text = a.glyph

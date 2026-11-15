@@ -16,6 +16,11 @@
 <header id="site-header">
   <div class="header-bar">
     <div class="header-links">
+      <!-- Phones only (CSS): the title fades out when you scroll, so this
+           little house keeps a way home in reach. -->
+      <a id="home-btn" class="home-btn" href="/" aria-label="Home">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/></svg>
+      </a>
       <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme"></button>
       <a id="role-link" hidden></a>
       <a id="logout-link" href="/api/logout">Log out</a>
@@ -27,7 +32,7 @@
         <span class="profile-name" id="profile-name"></span>
       </a>
     </div>
-    <h1>OmniShell</h1>
+    <h1><a id="home-link" class="home-link" href="/" title="Back to the start">OmniShell</a></h1>
     <p class="subtitle">Search commands for Linux, PowerShell, Python, and more</p>
   </div>
 </header>
@@ -43,8 +48,35 @@
   <section id="provider-select">
     <!-- Shown by app.js once /api/me confirms the user belongs to a school.
          Independent learners have no school, so they only see the language list. -->
-    <h2 class="group-heading" id="syllabus-heading" hidden>Syllabus</h2>
-    <p id="syllabus-empty" class="muted small-note" hidden>Your school hasn't chosen an exam board yet.</p>
+    <!-- Their badges: what they've earned, and for learners a few to aim for.
+         app.js fills this in from /api/me. -->
+    <section id="home-badges" class="home-badges" hidden>
+      <div class="home-badges-head">
+        <h2 class="group-heading">Your badges</h2>
+        <a class="home-badges-link" href="/profile.html#badges-card">See all badges</a>
+      </div>
+      <div id="home-badges-row" class="home-badges-row"></div>
+      <p id="home-badges-note" class="muted small-note" hidden></p>
+    </section>
+
+    <!-- The person's syllabus, shown right here on the page (not as a card to click):
+         the exam board is a title, with its topics in collapsible sections below. -->
+    <section id="syllabus-section" class="syllabus-section" hidden>
+      <div class="syllabus-head">
+        <h2 class="group-heading" id="syllabus-heading">Syllabus</h2>
+        <a id="syllabus-quiz-link" class="syllabus-quiz-btn" href="/quiz.html" hidden>Quiz me on this syllabus</a>
+      </div>
+      <p id="syllabus-empty" class="muted small-note" hidden>Your school hasn't chosen an exam board yet.</p>
+      <div id="syllabus-body">
+        <h3 id="syllabus-board" class="syllabus-board"></h3>
+        <p id="syllabus-note" class="syllabus-note"></p>
+        <label for="syllabus-search" class="sr-only">Search the syllabus</label>
+        <input id="syllabus-search" class="syllabus-search" type="text" placeholder="Search the syllabus (e.g. &quot;binary&quot;, &quot;sorting&quot;)...">
+        <p id="syllabus-count" class="muted small-note"></p>
+        <div id="syllabus-sections"></div>
+        <div id="syllabus-extra-cards" class="syllabus-extra"></div>
+      </div>
+    </section>
 
     <h2 class="group-heading" id="extra-heading" hidden>Extra learning material</h2>
     <button class="provider-card" data-provider="linux" data-file="linux_commands.json">
@@ -87,9 +119,6 @@
       <h2 id="provider-title"></h2>
     </div>
 
-    <!-- Only shown on a syllabus topic list: which spec it's based on and when it was last checked. -->
-    <p id="syllabus-note" class="syllabus-note" hidden></p>
-
     <label for="search-input" class="sr-only">Search by keyword</label>
     <input id="search-input" type="text" placeholder="Search by keyword (e.g. &quot;move directory&quot;)...">
 
@@ -98,6 +127,10 @@
   </section>
 </main>
 
+<!-- Pops up for a moment when a new badge is earned (see showBadgeToast in app.js). -->
+<div id="badge-toast" class="badge-toast" role="status" hidden></div>
+
+<script src="badges.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

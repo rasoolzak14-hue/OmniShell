@@ -86,6 +86,12 @@ body {
   gap: 8px;
 }
 
+/* Little house button: hidden here, shown on phones by the max-width: 600px
+   rule below (that rule has to come after this one). */
+.header-links a.home-btn {
+  display: none;
+}
+
 /* ...and the signed-in person's profile sits on the right. */
 .header-profile {
   position: absolute;
@@ -164,6 +170,30 @@ body {
   .header-links {
     gap: 6px;
   }
+
+  /* The faded-out title shouldn't catch taps; the house button does that job. */
+  .header-bar.scrolled h1 {
+    pointer-events: none;
+  }
+
+  .header-links a.home-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 9px;
+  }
+}
+
+/* Very small phones: slimmer buttons so the row (house, theme, quiz, log out,
+   plus the profile picture) still fits without overlapping. */
+@media (max-width: 360px) {
+  .header-bar .header-links {
+    gap: 4px;
+  }
+
+  .header-bar .header-links a,
+  .header-bar .header-links .theme-toggle {
+    padding: 6px 8px;
+  }
 }
 
 .header-links a {
@@ -182,6 +212,24 @@ body {
 
 .header-links a[hidden] {
   display: none;
+}
+
+/* The OmniShell title is a link home: it looks like plain text, but clicking
+   it takes you back to the start (see goHome in app.js). */
+.home-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.home-link:hover {
+  color: var(--accent);
+}
+
+.home-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 header h1 {
@@ -397,9 +445,50 @@ main {
   text-align: center;
 }
 
-/* "Based on spec X, last reviewed Y" note above a syllabus topic list */
+/* The syllabus, shown on the home page itself: the exam board is a title and
+   its topics sit underneath in collapsible sections. */
+.syllabus-section {
+  grid-column: 1 / -1;
+}
+
+.syllabus-section[hidden],
+.syllabus-section [hidden] {
+  display: none;
+}
+
+.syllabus-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.syllabus-head .group-heading {
+  margin: 0;
+}
+
+.syllabus-quiz-btn {
+  background: var(--accent);
+  color: var(--bg);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  padding: 7px 14px;
+}
+
+.syllabus-quiz-btn:hover {
+  filter: brightness(1.1);
+}
+
+.syllabus-board {
+  margin: 6px 0 10px;
+  font-size: 1.35rem;
+}
+
 .syllabus-note {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   padding: 8px 12px;
   border-left: 3px solid var(--accent);
   background: var(--panel);
@@ -409,13 +498,125 @@ main {
   line-height: 1.45;
 }
 
-.syllabus-note[hidden] {
+.syllabus-search {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.syllabus-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#syllabus-count {
+  margin: 8px 0 10px;
+}
+
+.syl-section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 0 0 8px;
+  overflow: hidden;
+}
+
+.syl-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.syl-section summary::-webkit-details-marker {
   display: none;
 }
 
-.provider-reviewed {
-  opacity: 0.8;
-  font-size: 0.78rem;
+.syl-section summary::before {
+  content: "\25B8";
+  color: var(--muted);
+  margin-right: 10px;
+  transition: transform 0.15s ease;
+}
+
+.syl-section[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.syl-section summary:hover {
+  background: rgba(79, 195, 247, 0.08);
+}
+
+.syl-name {
+  flex: 1;
+}
+
+.syl-count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.syl-topics {
+  border-top: 1px solid var(--border);
+  padding: 4px 16px 8px;
+}
+
+.syl-topic {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.syl-topic:last-child {
+  border-bottom: 0;
+}
+
+.syl-topic[hidden] {
+  display: none;
+}
+
+.syl-topic h4 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  color: var(--accent);
+}
+
+.syl-topic p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.syl-topic pre {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+
+.syl-topic code {
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.syllabus-extra {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.syllabus-extra:empty {
+  display: none;
 }
 
 /* Free-trial banner (independent learners only) */
@@ -448,4 +649,140 @@ main {
 
 .trial-btn:hover {
   filter: brightness(1.1);
+}
+
+/* Badges on the home page: a row of what you've earned, plus (for learners) a
+   few greyed-out ones to aim for. */
+.home-badges {
+  grid-column: 1 / -1;
+}
+
+.home-badges[hidden],
+.home-badges [hidden] {
+  display: none;
+}
+
+.home-badges-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.home-badges-head .group-heading {
+  margin: 0;
+}
+
+.home-badges-link {
+  color: var(--accent);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.home-badges-link:hover {
+  text-decoration: underline;
+}
+
+.home-badges-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 12px;
+}
+
+.home-badge {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text);
+  min-width: 0;
+}
+
+.home-badge svg {
+  width: 56px;
+  height: 56px;
+  display: block;
+  margin: 0 auto 4px;
+}
+
+.home-badge.locked {
+  color: var(--muted);
+}
+
+.home-badge .bname {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.home-badge .bnote {
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.25;
+  margin-top: 1px;
+  /* keep every tile the same height; the full text is in the hover tooltip */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-badges .small-note {
+  margin: 8px 0 0;
+}
+
+/* "You earned a badge" pop-up: appears under the header for a few seconds. */
+.badge-toast {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 0.9rem;
+}
+
+.badge-toast[hidden] {
+  display: none;
+}
+
+.badge-toast svg {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+.badge-toast .toast-title {
+  font-weight: 700;
+}
+
+.badge-toast .toast-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.badge-toast button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.badge-toast button:hover {
+  color: var(--text);
 }

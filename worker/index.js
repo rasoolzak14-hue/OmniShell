@@ -2315,10 +2315,58 @@ async function deleteBadgeData(env, idsSql, ...binds) {
   }
 }
 
+// ---------- welcome badge ----------
+//
+// Everyone gets the Welcome badge, whatever their role, the first time they
+// reach the home page (or their profile) after logging in. Accounts that
+// existed before badges did get it on their next visit. It is saved once and
+// never awarded twice.
+
+const WELCOME_BADGE = "welcome";
+
+// Every badge this person holds, oldest first. Returns null if the badges
+// table isn't available (migration 0008 not run yet), so callers can carry on
+// without badges instead of failing.
+async function loadEarnedBadges(env, userId) {
+  try {
+    const held = await env.DB
+      .prepare("SELECT badge_id, earned_at FROM user_badges WHERE user_id = ? ORDER BY earned_at")
+      .bind(userId)
+      .all();
+    return (held.results || []).map((r) => ({ id: r.badge_id, earnedAt: r.earned_at }));
+  } catch {
+    return null;
+  }
+}
+
+// Makes sure the Welcome badge is saved. Returns the person's badges and the
+// ids that were newly awarded just now (so the page can celebrate once).
+// Never throws.
+async function ensureWelcomeBadge(env, userId) {
+  const earned = await loadEarnedBadges(env, userId);
+  if (earned === null) return { earned: [], newIds: [] };
+  if (earned.some((b) => b.id === WELCOME_BADGE)) return { earned, newIds: [] };
+  try {
+    const now = new Date().toISOString();
+    const res = await env.DB
+      .prepare("INSERT OR IGNORE INTO user_badges (user_id, badge_id, earned_at) VALUES (?, ?, ?)")
+      .bind(userId, WELCOME_BADGE, now)
+      .run();
+    // If another request saved it a moment earlier, nothing changed: not new.
+    const added = res && res.meta && res.meta.changes !== undefined ? res.meta.changes > 0 : true;
+    if (!added) return { earned, newIds: [] };
+    return { earned: [...earned, { id: WELCOME_BADGE, earnedAt: now }], newIds: [WELCOME_BADGE] };
+  } catch {
+    return { earned, newIds: [] };
+  }
+}
+
 // ---------- profile ----------
 
-// Who's logged in, for the header. The name is best-effort: if the lookup
-// fails the page still works and just falls back to the username.
+// Who's logged in, for the header and the home page. The name is best-effort:
+// if the lookup fails the page still works and just falls back to the username.
+// Also saves the Welcome badge on a first visit and returns the person's
+// badges, so the home page can show them without a second request.
 async function handleMe(env, session) {
   let displayName = null;
   try {
@@ -2327,10 +2375,20 @@ async function handleMe(env, session) {
   } catch {
     displayName = null;
   }
-  return new Response(JSON.stringify({ username: session.username, role: session.role, displayName }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" }
-  });
+  const welcome = await ensureWelcomeBadge(env, session.userId);
+  return new Response(
+    JSON.stringify({
+      username: session.username,
+      role: session.role,
+      displayName,
+      badges: welcome.earned,
+      newBadges: welcome.newIds
+    }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }
+  );
 }
 
 // Everything the profile page shows, and only ever about the logged-in user:
@@ -2361,8 +2419,14 @@ async function handleProfile(env, session) {
     syllabus: null,
     canChooseBoard: me.role === "independent",
     stats: null,
-    badges: null
+    badges: null,
+    earnedBadges: []
   };
+
+  // Everyone, teachers and headteachers included, has the Welcome badge. The
+  // full badge board (mastery, streaks) is only for people who take quizzes.
+  const welcome = await ensureWelcomeBadge(env, me.id);
+  profile.earnedBadges = welcome.earned;
 
   if (me.role === "student") {
     if (me.classroom_id) {
